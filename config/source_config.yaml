@@ -1,0 +1,21 @@
+schema_version: 1
+# Examples only. Replace the identifiers and set the relevant source to true.
+greenhouse:
+  enabled: false
+  boards:
+    - example-company
+lever:
+  enabled: false
+  sites:
+    - example-company
+ashby:
+  enabled: false
+  boards:
+    - example-company
+collection:
+  request_timeout_seconds: 20
+  user_agent: CareerOS/0.2 personal-job-research (+https://tayyabautomates.com)
+  max_retries: 2
+  backoff_seconds: 0.5
+  max_concurrency: 2
+  max_response_bytes: 5000000

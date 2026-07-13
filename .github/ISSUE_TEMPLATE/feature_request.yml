@@ -1,0 +1,40 @@
+name: Feature request
+description: Propose a focused improvement to CareerOS.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or maintainer problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Describe the expected behavior without including private candidate data.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Collectors and normalization
+        - Deduplication and eligibility
+        - API or CLI
+        - Persistence and migrations
+        - Testing and developer experience
+        - Documentation
+        - Future AI evaluation
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Project boundaries
+      options:
+        - label: This proposal does not require bypassing authentication, CAPTCHA, rate limits, or access controls.
+          required: true

@@ -1,0 +1,53 @@
+schema_version: 1
+candidate:
+  name: Tayyab Nasir
+  location:
+    city: Islamabad
+    country: Pakistan
+  mobility:
+    remote: true
+    relocation: true
+  education:
+    - degree: BS Computer Science
+  experience:
+    years: 7
+    summary: 7+ years of Python backend and automation experience
+  skills:
+    backend:
+      - Python
+      - FastAPI
+      - Flask
+      - Django
+      - asyncio
+      - SQLAlchemy
+      - Pydantic
+    automation:
+      - Playwright
+      - Selenium
+      - Scrapy
+      - BeautifulSoup
+      - Appium
+    integrations:
+      - n8n
+      - Make
+      - Zapier
+      - APIs
+      - webhooks
+      - OpenAI API
+      - Claude API
+    databases:
+      - PostgreSQL
+      - MySQL
+      - SQLite
+    delivery:
+      - Docker
+      - GitHub Actions
+      - Linux
+      - Pytest
+  achievements:
+    - 200+ production automation systems delivered
+  links:
+    github: https://github.com/tayyabnasir01112-debug
+    portfolio: https://github.com/tayyabnasir01112-debug
+    linkedin: https://www.linkedin.com/in/tayyabautomates
+    website: https://tayyabautomates.com

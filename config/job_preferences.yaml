@@ -1,0 +1,32 @@
+schema_version: 1
+employment_types:
+  - full_time
+  - contract
+locations:
+  allow_worldwide_remote: true
+  allow_pakistan_onsite: true
+  require_relocation_support_for_other_onsite: true
+working_hours:
+  - pakistan
+  - europe
+  - us_eastern
+compensation:
+  remote:
+    currency: USD
+    minimum_monthly: 1500
+    preferred_monthly: 2000
+  pakistan:
+    currency: PKR
+    minimum_monthly: 250000
+  contract:
+    currency: USD
+    minimum_hourly: 15
+  undisclosed: flag
+maximum_listing_age_hours: 72
+minimum_match_score: 75
+maximum_application_packages_per_day: 5
+exclusions:
+  unpaid: true
+  commission_only: true
+  frontend_only: true
+  citizenship_restricted: true
