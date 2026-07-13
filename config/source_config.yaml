@@ -1,17 +1,101 @@
 schema_version: 1
-# Examples only. Replace the identifiers and set the relevant source to true.
 greenhouse:
-  enabled: false
+  enabled: true
   boards:
-    - example-company
+  - affirm
+  - airbnb
+  - anthropic
+  - asana
+  - brex
+  - calendly
+  - canonical
+  - ciq
+  - circleci
+  - cloudflare
+  - cockroachlabs
+  - coinbase
+  - databricks
+  - datadog
+  - discord
+  - dropbox
+  - elastic
+  - fastly
+  - figma
+  - gitlab
+  - grafanalabs
+  - gusto
+  - instacart
+  - klaviyo
+  - labelbox
+  - launchdarkly
+  - mongodb
+  - okta
+  - postman
+  - reddit
+  - remotecom
+  - robinhood
+  - scaleai
+  - stripe
+  - temporaltechnologies
+  - twilio
+  - webflow
 lever:
-  enabled: false
+  enabled: true
   sites:
-    - example-company
+  - 360learning
+  - AIFund
+  - AviveSolutions
+  - bee-talents
+  - binance
+  - britecore
+  - coderio
+  - filevine
+  - foundation-llm-technologies
+  - gohighlevel
+  - highspot
+  - loadsmart
+  - oowlish
+  - peerspace
+  - quantcast
+  - remofirst
+  - siteground
+  - soum
+  - sphere-laboratories
+  - tala
+  - tonsser
+  - tryjeeves
+  - vrchat
 ashby:
-  enabled: false
+  enabled: true
   boards:
-    - example-company
+  - airbyte
+  - anyscale
+  - astronomer
+  - cohere
+  - cursor
+  - deepgram
+  - elevenlabs
+  - langchain
+  - linear
+  - lovable
+  - modal
+  - n8n
+  - neon
+  - notion
+  - openrouter
+  - perplexity
+  - pinecone
+  - posthog
+  - prefect
+  - railway
+  - ramp
+  - render
+  - replit
+  - resend
+  - runway
+  - supabase
+  - temporal
+  - vapi
 collection:
   request_timeout_seconds: 20
   user_agent: CareerOS/0.2 personal-job-research (+https://tayyabautomates.com)

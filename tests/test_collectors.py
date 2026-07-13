@@ -1,3 +1,4 @@
+import warnings
 from datetime import UTC, datetime
 
 import httpx
@@ -7,8 +8,22 @@ from app.collectors.ashby import AshbyCollector
 from app.collectors.greenhouse import GreenhouseCollector
 from app.collectors.http import ResilientHttpClient
 from app.collectors.lever import LeverCollector
-from app.collectors.normalization import html_to_text
+from app.collectors.normalization import html_to_text, normalize_location_type
 from app.db.models import EmploymentType, LocationType
+
+
+def test_descriptive_remote_location_is_normalized() -> None:
+    assert normalize_location_type("Global - Remote Work") == LocationType.REMOTE
+    assert normalize_location_type("Remote, Europe") == LocationType.REMOTE
+
+
+def test_plain_url_cleanup_does_not_emit_html_parser_warning() -> None:
+    with warnings.catch_warnings(record=True) as caught:
+        assert html_to_text("https://example.com/public-profile") == (
+            "https://example.com/public-profile"
+        )
+
+    assert caught == []
 
 
 def make_http(payload: object) -> tuple[httpx.AsyncClient, ResilientHttpClient]:

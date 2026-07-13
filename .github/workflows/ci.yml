@@ -2,7 +2,6 @@ name: CI
 
 on:
   push:
-    branches: [main]
   pull_request:
     branches: [main]
 
@@ -19,7 +18,7 @@ jobs:
     timeout-minutes: 15
     env:
       CAREEROS_ENVIRONMENT: test
-      CAREEROS_DATABASE_URL: sqlite+aiosqlite:///${{ runner.temp }}/careeros-ci.db
+      CAREEROS_DATABASE_URL: sqlite+aiosqlite:///./careeros-ci.db
       CAREEROS_LOG_LEVEL: WARNING
 
     steps:

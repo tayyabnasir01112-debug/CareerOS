@@ -82,3 +82,17 @@ def test_undisclosed_compensation_is_flagged_not_rejected(
 
     assert result.decision == EligibilityDecision.FLAGGED
     assert "compensation is undisclosed" in result.reasons
+
+
+def test_undisclosed_employment_type_is_flagged_not_rejected(
+    service: EligibilityService,
+) -> None:
+    now = datetime(2026, 7, 13, 12, tzinfo=UTC)
+
+    result = service.evaluate(
+        make_job(now, employment_type=EmploymentType.UNKNOWN),
+        now=now,
+    )
+
+    assert result.decision == EligibilityDecision.FLAGGED
+    assert "employment type is undisclosed" in result.reasons

@@ -57,6 +57,12 @@ class PackageStatus(StrEnum):
     FAILED = "failed"
 
 
+class NotificationStatus(StrEnum):
+    PENDING = "pending"
+    SENT = "sent"
+    FAILED = "failed"
+
+
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, onupdate=utc_now)
@@ -116,6 +122,7 @@ class Job(TimestampMixin, Base):
     company: Mapped[Company] = relationship(back_populates="jobs")
     evaluations: Mapped[list["JobEvaluation"]] = relationship(back_populates="job")
     application_packages: Mapped[list["ApplicationPackage"]] = relationship(back_populates="job")
+    notifications: Mapped[list["JobNotification"]] = relationship(back_populates="job")
 
 
 class JobEvaluation(TimestampMixin, Base):
@@ -123,16 +130,64 @@ class JobEvaluation(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
-    match_score: Mapped[float] = mapped_column(Float)
-    recommendation: Mapped[str] = mapped_column(String(50))
-    summary: Mapped[str] = mapped_column(Text)
+    match_score: Mapped[float | None] = mapped_column(Float)
+    recommendation: Mapped[str | None] = mapped_column(String(50))
+    summary: Mapped[str | None] = mapped_column(Text)
     strengths: Mapped[list[str]] = mapped_column(JSON, default=list)
     gaps: Mapped[list[str]] = mapped_column(JSON, default=list)
     model_name: Mapped[str] = mapped_column(String(100))
     prompt_version: Mapped[str] = mapped_column(String(50))
     evaluated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+    evaluator_type: Mapped[str] = mapped_column(String(50), default="recruiter")
+    structured_result: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    should_prepare_application: Mapped[bool] = mapped_column(default=False)
+    input_hash: Mapped[str] = mapped_column(String(64), index=True)
+    job_content_fingerprint: Mapped[str] = mapped_column(String(64))
+    candidate_profile_fingerprint: Mapped[str] = mapped_column(String(64))
+    preference_fingerprint: Mapped[str] = mapped_column(String(64))
+    prompt_fingerprint: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(30), index=True)
+    api_response_id: Mapped[str | None] = mapped_column(String(255))
+    input_tokens: Mapped[int | None]
+    output_tokens: Mapped[int | None]
+    total_tokens: Mapped[int | None]
+    duration_ms: Mapped[int | None]
+    error_category: Mapped[str | None] = mapped_column(String(50))
+    error_summary: Mapped[str | None] = mapped_column(String(500))
 
     job: Mapped[Job] = relationship(back_populates="evaluations")
+    notifications: Mapped[list["JobNotification"]] = relationship(back_populates="evaluation")
+
+
+class JobNotification(TimestampMixin, Base):
+    __tablename__ = "job_notifications"
+    __table_args__ = (
+        UniqueConstraint(
+            "channel_type",
+            "evaluation_fingerprint",
+            name="channel_evaluation_fingerprint",
+        ),
+        Index("ix_job_notifications_status", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
+    evaluation_id: Mapped[int] = mapped_column(
+        ForeignKey("job_evaluations.id", ondelete="CASCADE"), index=True
+    )
+    channel_type: Mapped[str] = mapped_column(String(30), default="discord")
+    evaluation_fingerprint: Mapped[str] = mapped_column(String(64))
+    status: Mapped[NotificationStatus] = mapped_column(
+        Enum(NotificationStatus, native_enum=False), default=NotificationStatus.PENDING
+    )
+    provider_response_id: Mapped[str | None] = mapped_column(String(255))
+    attempt_count: Mapped[int] = mapped_column(default=0)
+    error_category: Mapped[str | None] = mapped_column(String(50))
+    error_summary: Mapped[str | None] = mapped_column(String(500))
+    sent_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+    job: Mapped[Job] = relationship(back_populates="notifications")
+    evaluation: Mapped[JobEvaluation] = relationship(back_populates="notifications")
 
 
 class ApplicationPackage(TimestampMixin, Base):

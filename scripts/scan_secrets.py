@@ -25,7 +25,7 @@ _RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         "populated secret assignment",
         re.compile(
             r"\b(?:api[_-]?key|password|client[_-]?secret|access[_-]?token|bearer[_-]?token)"
-            r"\b\s*[:=]\s*[\"']?[^\s\"'#]{8,}",
+            r"\b\s*[:=]\s*(?:\"[^\"\r\n]{8,}\"|'[^'\r\n]{8,}'|[A-Za-z0-9_/-]{12,})",
             re.I,
         ),
     ),

@@ -16,6 +16,13 @@ active or tracking-capable elements while preserving meaningful headings, lists,
 compensation text. Public source payloads are retained for traceability after recursively removing
 header-, cookie-, and authorization-shaped fields.
 
+`SourceRegistryValidator` maintains the discovery boundary separately from collection. Registry
+entries are strict platform/identifier records, never arbitrary request URLs. Validation maps each
+entry to one fixed public ATS endpoint, rejects redirects and authentication, verifies the expected
+JSON shape, records active-job state and UTC timestamps, and applies a seven-day TTL/cooldown.
+`sync_source_config` generates the runtime board lists from enabled valid entries while retaining
+the existing conservative collection settings.
+
 ## Deduplication and eligibility
 
 The collection service orchestrates each configured board or site independently. Database
@@ -35,14 +42,46 @@ and `CollectorRun` audit records. SQLite is the local database, timestamps round
 Alembic owns schema evolution. The database boundary can later support a server database without
 moving business rules into route handlers.
 
-FastAPI routes delegate to query and collection services. The Windows-compatible CLI calls the same
-collection service, so API and CLI behavior share normalization, filtering, error isolation, and
-statistics. No background scheduler is active.
+FastAPI routes delegate to query and collection services. Windows-compatible CLIs call the same
+services, so API, manual pipeline, and scheduled pipeline behavior share normalization, filtering,
+error isolation, and statistics.
 
-## Future AI evaluation boundary
+## AI evaluation boundary
 
-A later evaluation service may read verified candidate configuration and eligible stored jobs, then
-call the OpenAI API using versioned prompts and structured outputs. It must never invent candidate
-experience, mutate collection rules, or hide model provenance. OpenAI calls, company research,
-application generation, Discord delivery, scheduling, analytics, and frontend work remain outside
-the implemented release.
+The implemented recruiter evaluation boundary has four explicit services:
+
+- `EvaluationInputBuilder` creates sanitized, size-bounded prompts and deterministic component
+  fingerprints from normalized jobs, verified configuration, eligibility, and versioned prompt
+  files. Raw collector payloads never cross this boundary.
+- `RecruiterEvaluator` owns limited transient retries and delegates one prepared input to the
+  injected provider interface.
+- `OpenAIRecruiterEvaluationProvider` uses the async Responses API with Pydantic Structured Outputs,
+  no tools, no streaming, and provider-side storage disabled. Tests inject
+  `FakeRecruiterEvaluationProvider` and never contact OpenAI.
+- `EvaluationRepository` and `EvaluationOrchestrator` own persistence, successful-result caching,
+  UTC daily and per-run budgets, deterministic selection, failure isolation, and token summaries.
+
+Cache identity combines job content, candidate profile, job preferences, prompt content/version,
+and configured model. Failed calls remain retryable; deterministic ineligibility spends no API
+request. Authentication, permission, and quota failures stop a batch because further calls cannot
+meaningfully succeed. The default concurrency is intentionally one.
+
+Versioned prompts prohibit invented experience, protected-characteristic decisions, unsupported
+hiring-likelihood claims, hidden reasoning disclosure, and instructions embedded in job data. Only
+the validated user-facing result and minimal API metadata are persisted.
+
+## Notification and local scheduling boundary
+
+`CareerPipelineOrchestrator` composes collection and evaluation, then passes qualifying successful
+results to `DiscordNotificationService`. `JobNotificationFormatter` creates one bounded embed per
+job. `NotificationRepository` persists attempts and a unique evaluation fingerprint: successful
+fingerprints are skipped while failed deliveries remain retryable. `DiscordWebhookProvider` is the
+only component that receives the webhook URL and uses bounded async HTTP without redirects. Tests
+inject `FakeNotificationProvider` and block external traffic.
+
+The explicit Windows Task Scheduler scripts launch the same CLI every three hours without keeping
+FastAPI running. Task definitions contain project paths but no credentials; ignored `.env` settings
+are loaded at process startup.
+
+Company research, resume changes, application generation, analytics, automatic submission, and
+frontend work remain outside the implemented release.

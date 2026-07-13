@@ -4,7 +4,12 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import Settings
-from app.schemas.configuration import CandidateProfile, JobPreferences, SourceConfig
+from app.schemas.configuration import (
+    CandidateProfile,
+    JobPreferences,
+    SourceConfig,
+    SourceRegistry,
+)
 
 
 class ConfigurationFileError(RuntimeError):
@@ -42,3 +47,7 @@ def load_job_preferences(settings: Settings) -> JobPreferences:
 
 def load_source_config(settings: Settings) -> SourceConfig:
     return load_yaml_model(settings.source_config_path, SourceConfig)
+
+
+def load_source_registry(settings: Settings) -> SourceRegistry:
+    return load_yaml_model(settings.source_registry_path, SourceRegistry)

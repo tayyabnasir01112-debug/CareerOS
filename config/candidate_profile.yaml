@@ -44,6 +44,12 @@ candidate:
       - GitHub Actions
       - Linux
       - Pytest
+    secondary:
+      - React
+      - TypeScript
+      - Node.js
+      - HTML
+      - CSS
   achievements:
     - 200+ production automation systems delivered
   links:

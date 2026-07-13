@@ -54,7 +54,9 @@ class EligibilityService:
         content = f"{job.title}\n{job.description}"
 
         allowed_employment = set(self.preferences.employment_types)
-        if job.employment_type.value not in allowed_employment:
+        if job.employment_type == EmploymentType.UNKNOWN:
+            flagged.append("employment type is undisclosed")
+        elif job.employment_type.value not in allowed_employment:
             rejected.append(f"employment type '{job.employment_type.value}' is not included")
 
         exclusions = self.preferences.exclusions

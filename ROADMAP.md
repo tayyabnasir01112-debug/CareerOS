@@ -7,22 +7,25 @@ and data-quality foundation is exercised.
 
 - FastAPI service, async SQLite persistence, and migrations
 - Greenhouse, Lever, and Ashby public collectors
+- Curated, live-validated multi-platform source registry and runtime-config synchronization
 - Normalization, source and cross-source deduplication, and eligibility filtering
 - Collection CLI and API
+- Structured OpenAI recruiter evaluation with verified evidence, caching, and budgets
+- Discord job notifications with persisted deduplication and safe retries
+- Manual and Windows-scheduled end-to-end pipeline execution
 - Windows-native development, automated tests, secret scanning, and CI
 
 ## Next recommended milestone
 
-- Verified OpenAI recruiter-style evaluation for eligible jobs
-- Versioned prompts and structured evaluation output
-- Strict daily evaluation budgets, retry controls, and auditable model metadata
-- Tests that mock every OpenAI request and never invent candidate experience
+- Controlled production evaluation calibration against reviewed job fixtures
+- Explicit verified portfolio-project catalog for evidence-backed project matching
+- Evaluation observability and manual review workflows
+- Attributable company research as a separate, non-evaluator service boundary
 
 ## Later milestones
 
-- Company research using attributable public sources
+- Expanded company research using attributable public sources
 - Resume optimization and tailored application-package generation
 - Application writing review workflow
-- Discord notifications with explicit secret handling
-- Scheduling and collection observability
+- Expanded scheduling and pipeline observability
 - Career analytics dashboard and frontend
