@@ -1,9 +1,10 @@
 schema_version: 1
-# Examples only. Replace the identifiers and set the relevant source to true.
+# CIQ is the small public Greenhouse board used for the CareerOS smoke test.
 greenhouse:
-  enabled: false
+  enabled: true
   boards:
-    - example-company
+    - ciq
+# Disabled examples for configuring additional platforms.
 lever:
   enabled: false
   sites:
