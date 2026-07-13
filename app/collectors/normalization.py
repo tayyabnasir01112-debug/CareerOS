@@ -20,10 +20,13 @@ _SENSITIVE_RAW_KEYS = {
 
 def html_to_text(value: str) -> str:
     decoded = html.unescape(value)
-    soup = BeautifulSoup(decoded, "html.parser")
-    for element in soup(["script", "style", "noscript", "iframe", "svg", "form"]):
-        element.decompose()
-    text = soup.get_text(separator="\n")
+    if "<" in decoded or ">" in decoded:
+        soup = BeautifulSoup(decoded, "html.parser")
+        for element in soup(["script", "style", "noscript", "iframe", "svg", "form"]):
+            element.decompose()
+        text = soup.get_text(separator="\n")
+    else:
+        text = decoded
     lines = [re.sub(r"[ \t\r\f\v]+", " ", line).strip() for line in text.splitlines()]
     output: list[str] = []
     previous_blank = True
@@ -78,11 +81,11 @@ def normalize_location_type(value: str | None, *, is_remote: bool = False) -> Lo
     if is_remote:
         return LocationType.REMOTE
     normalized = re.sub(r"[^a-z]", "", (value or "").lower())
-    if normalized in {"remote", "workfromhome"}:
+    if "remote" in normalized or "workfromhome" in normalized:
         return LocationType.REMOTE
-    if normalized == "hybrid":
+    if "hybrid" in normalized:
         return LocationType.HYBRID
-    if normalized in {"onsite", "onlocation"}:
+    if "onsite" in normalized or "onlocation" in normalized:
         return LocationType.ONSITE
     return LocationType.UNKNOWN
 
