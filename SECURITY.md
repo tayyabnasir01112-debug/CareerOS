@@ -18,8 +18,12 @@ acknowledgement within seven days, followed by a remediation assessment.
 ## Operational boundaries
 
 - Store runtime credentials only in an ignored local `.env` file or an appropriate secret manager.
+- Treat a Discord webhook URL as a credential. CareerOS validates it without logging or storing it;
+  notification records contain only sanitized status metadata and the Discord message identifier.
 - Never commit `.env`, databases, resumes, generated applications, or collected private data.
 - Collectors may access only documented public job-board endpoints. They must not bypass
   authentication, CAPTCHA, rate limits, robots rules, or platform access controls.
 - Rotate a credential immediately if it appears in a commit, log, issue, or build artifact. Removing
   it from a later commit does not make the original credential safe.
+- Discord messages contain concise normalized job and evaluation fields only. Raw collector
+  payloads, descriptions, prompts, provider responses, local paths, and credentials are excluded.

@@ -41,6 +41,7 @@ class CandidateSkills(StrictModel):
     integrations: list[str]
     databases: list[str]
     delivery: list[str]
+    secondary: list[str] = Field(default_factory=list)
 
 
 class CandidateLinks(StrictModel):

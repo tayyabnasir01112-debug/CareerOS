@@ -1,9 +1,8 @@
 # CareerOS
 
 CareerOS is a production-style AI career platform that discovers public job listings, normalizes
-and deduplicates opportunities, evaluates rule-based eligibility, and will later prepare tailored
-application packages. The current release is a tested backend and public collection foundation;
-planned AI and application-writing capabilities are not yet implemented.
+and deduplicates opportunities, evaluates them against verified candidate evidence, and sends
+useful matches to Discord. Tailored application packages remain a future, human-reviewed phase.
 
 CareerOS is owned and maintained by [Tayyab Nasir](https://github.com/tayyabnasir01112-debug).
 Portfolio links are available at [tayyabautomates.com](https://tayyabautomates.com) and
@@ -21,6 +20,8 @@ Implemented now:
 - Rule-based eligibility filtering
 - CLI and API collection with partial-failure statistics
 - Verified recruiter-style OpenAI evaluation with structured outputs, caching, and strict budgets
+- Deduplicated Discord notifications and an end-to-end career pipeline
+- Optional local automation through Windows Task Scheduler
 - Mocked testing, strict static analysis, secret scanning, and GitHub Actions CI
 
 Planned:
@@ -28,7 +29,6 @@ Planned:
 - Attributable company research
 - Resume optimization
 - Tailored application writing and preparation packages
-- Discord notifications
 - Career analytics dashboard and frontend
 
 See the [roadmap](ROADMAP.md) for milestone boundaries and sequencing.
@@ -46,6 +46,8 @@ CareerOS uses service-oriented internal boundaries:
 5. FastAPI routes and the PowerShell-compatible CLI call the same business services.
 6. The recruiter evaluation service sends only sanitized normalized job data and verified profile
    facts to the configured OpenAI model, then validates and persists structured output.
+7. The notification service formats qualifying evaluations as bounded Discord embeds and records a
+   delivery fingerprint so reruns cannot send the same result twice.
 
 More detail is available in [docs/architecture.md](docs/architecture.md).
 
@@ -163,6 +165,67 @@ Current limitations: listing expiry is enforced only where normalized date data 
 candidate YAML currently contains verified achievements but no individually verified portfolio
 project catalog, so project recommendations remain empty; evaluation concurrency is deliberately
 one request at a time.
+
+## Discord notifications and full pipeline
+
+Create a webhook in Discord under **Server Settings → Integrations → Webhooks**, choose the target
+channel, and copy its URL. Place it only in the ignored local `.env` file:
+
+```dotenv
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your-id/your-token
+DISCORD_NOTIFICATIONS_ENABLED=true
+DISCORD_MINIMUM_MATCH_SCORE=75
+DISCORD_MAX_NOTIFICATIONS_PER_RUN=5
+DISCORD_REQUEST_TIMEOUT_SECONDS=20
+```
+
+Run every enabled source, one source, a safe dry run, or a no-notification test:
+
+```powershell
+python -m scripts.run_career_pipeline --all
+python -m scripts.run_career_pipeline --source greenhouse --limit 5
+python -m scripts.run_career_pipeline --all --dry-run
+python -m scripts.run_career_pipeline --all --no-notify
+```
+
+Dry runs never call OpenAI or Discord. `--no-notify` still permits collection and evaluation but
+does not deliver messages. A Discord notification is eligible only for a successful evaluation at
+or above the configured score with `strong_apply`, `apply`, or `consider`. CareerOS hashes the
+evaluation input, structured result, prompt version, and model, then stores that fingerprint with
+the delivery record. A sent fingerprint is never sent again; failed records remain retryable.
+
+Discord receives only the job title, company, location, source/date, public URL, concise structured
+match fields, skills, gaps, concern, positioning, and application-preparation flag. CareerOS never
+sends raw descriptions or collector payloads, prompts, full OpenAI responses, webhook/API secrets,
+phone numbers, local paths, or hidden reasoning.
+
+An HTTP 404 usually means the webhook was deleted; create a replacement and update `.env`. HTTP
+401/403 means Discord rejected the webhook credentials. HTTP 429 is retried using Discord's
+`Retry-After` guidance, while persistent rate limits are reported without exposing response bodies.
+
+### Windows Task Scheduler
+
+Registration is always explicit. From the project root, register or remove the default three-hour
+task with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\register_windows_task.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\unregister_windows_task.ps1
+```
+
+Use `-IntervalHours 6` to choose another interval. The task uses the project's
+`.venv\Scripts\python.exe`, sets the project as its working directory, reads secrets from the local
+`.env`, runs with a hidden PowerShell window, prevents overlapping instances, and writes only the
+pipeline's sanitized JSON summary to `careeros-pipeline.log`.
+
+For manual Task Scheduler setup, create a repeating task with program `powershell.exe`, start in the
+CareerOS directory, and use arguments equivalent to:
+
+```text
+-NoProfile -NonInteractive -WindowStyle Hidden -Command "Set-Location 'C:\path\to\CareerOS'; & '.\.venv\Scripts\python.exe' -m scripts.run_career_pipeline --all"
+```
+
+Do not put webhook URLs or OpenAI keys in task arguments.
 
 ## Public collector configuration
 

@@ -13,12 +13,20 @@ from app.schemas.evaluation import (
     PaginatedEvaluations,
 )
 from app.schemas.models import JobRead, PaginatedJobs, PaginatedRuns
+from app.schemas.notification import (
+    CareerPipelineSummary,
+    NotificationRead,
+    PaginatedNotifications,
+    PipelineRunOptions,
+)
 from app.schemas.pipeline import CollectionSummary, CollectorPlatform
+from app.services.career_pipeline import run_career_pipeline
 from app.services.collection import collect_configured_jobs
 from app.services.evaluation_orchestrator import run_configured_evaluations
 from app.services.evaluation_repository import EvaluationRepository
 from app.services.health import HealthService
 from app.services.jobs import CollectorRunQueryService, JobQueryService
+from app.services.notification import NotificationRepository
 
 router = APIRouter()
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
@@ -133,3 +141,36 @@ async def get_job_evaluation(job_id: int, session: SessionDependency) -> Evaluat
             detail="No evaluation found for this job",
         )
     return EvaluationRead.model_validate(evaluation)
+
+
+@router.post("/pipeline/run", response_model=CareerPipelineSummary)
+async def run_pipeline(
+    options: PipelineRunOptions,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> CareerPipelineSummary:
+    return await run_career_pipeline(session, settings, options)
+
+
+@router.get("/notifications", response_model=PaginatedNotifications)
+async def list_notifications(
+    session: SessionDependency,
+    settings: SettingsDependency,
+    limit: Annotated[int | None, Query(ge=1, le=200)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> PaginatedNotifications:
+    return await NotificationRepository(session).list(
+        limit=limit or settings.api_page_size,
+        offset=offset,
+    )
+
+
+@router.get("/notifications/{notification_id}", response_model=NotificationRead)
+async def get_notification(
+    notification_id: int,
+    session: SessionDependency,
+) -> NotificationRead:
+    notification = await NotificationRepository(session).get(notification_id)
+    if notification is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+    return NotificationRead.model_validate(notification)

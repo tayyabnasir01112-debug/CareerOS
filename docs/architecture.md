@@ -35,11 +35,11 @@ and `CollectorRun` audit records. SQLite is the local database, timestamps round
 Alembic owns schema evolution. The database boundary can later support a server database without
 moving business rules into route handlers.
 
-FastAPI routes delegate to query and collection services. The Windows-compatible CLI calls the same
-collection service, so API and CLI behavior share normalization, filtering, error isolation, and
-statistics. No background scheduler is active.
+FastAPI routes delegate to query and collection services. Windows-compatible CLIs call the same
+services, so API, manual pipeline, and scheduled pipeline behavior share normalization, filtering,
+error isolation, and statistics.
 
-## Future AI evaluation boundary
+## AI evaluation boundary
 
 The implemented recruiter evaluation boundary has four explicit services:
 
@@ -63,5 +63,18 @@ Versioned prompts prohibit invented experience, protected-characteristic decisio
 hiring-likelihood claims, hidden reasoning disclosure, and instructions embedded in job data. Only
 the validated user-facing result and minimal API metadata are persisted.
 
-Company research, resume changes, application generation, Discord delivery, scheduling, analytics,
-and frontend work remain outside the implemented release.
+## Notification and local scheduling boundary
+
+`CareerPipelineOrchestrator` composes collection and evaluation, then passes qualifying successful
+results to `DiscordNotificationService`. `JobNotificationFormatter` creates one bounded embed per
+job. `NotificationRepository` persists attempts and a unique evaluation fingerprint: successful
+fingerprints are skipped while failed deliveries remain retryable. `DiscordWebhookProvider` is the
+only component that receives the webhook URL and uses bounded async HTTP without redirects. Tests
+inject `FakeNotificationProvider` and block external traffic.
+
+The explicit Windows Task Scheduler scripts launch the same CLI every three hours without keeping
+FastAPI running. Task definitions contain project paths but no credentials; ignored `.env` settings
+are loaded at process startup.
+
+Company research, resume changes, application generation, analytics, automatic submission, and
+frontend work remain outside the implemented release.

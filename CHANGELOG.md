@@ -20,5 +20,9 @@ versioning once stable releases begin.
 - Successful-evaluation caching, UTC daily/per-run budgets, token accounting, and safe retries.
 - Evaluation CLI and paginated API endpoints with offline dry-run support.
 - Additive structured evaluation persistence and fully mocked provider tests.
+- Discord webhook delivery with bounded embeds, retries, rate-limit handling, and persisted
+  notification fingerprints.
+- End-to-end collection, eligibility, evaluation, and notification CLI/API orchestration.
+- Optional three-hour Windows Task Scheduler registration and removal scripts.
 
 [Unreleased]: https://github.com/tayyabnasir01112-debug/CareerOS/commits/main

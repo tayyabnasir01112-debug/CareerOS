@@ -10,6 +10,8 @@ and data-quality foundation is exercised.
 - Normalization, source and cross-source deduplication, and eligibility filtering
 - Collection CLI and API
 - Structured OpenAI recruiter evaluation with verified evidence, caching, and budgets
+- Discord job notifications with persisted deduplication and safe retries
+- Manual and Windows-scheduled end-to-end pipeline execution
 - Windows-native development, automated tests, secret scanning, and CI
 
 ## Next recommended milestone
@@ -24,6 +26,5 @@ and data-quality foundation is exercised.
 - Expanded company research using attributable public sources
 - Resume optimization and tailored application-package generation
 - Application writing review workflow
-- Discord notifications with explicit secret handling
-- Scheduling and collection observability
+- Expanded scheduling and pipeline observability
 - Career analytics dashboard and frontend
