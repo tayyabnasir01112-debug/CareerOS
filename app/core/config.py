@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     candidate_profile_path: Path = Path("config/candidate_profile.yaml")
     job_preferences_path: Path = Path("config/job_preferences.yaml")
     source_config_path: Path = Path("config/source_config.yaml")
+    source_registry_path: Path = Path("config/source_registry.yaml")
     api_page_size: int = Field(default=50, ge=1, le=200)
     openai_api_key: SecretStr | None = Field(default=None, validation_alias="OPENAI_API_KEY")
     openai_recruiter_model: str = Field(

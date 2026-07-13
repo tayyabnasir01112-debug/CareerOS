@@ -7,6 +7,7 @@ and data-quality foundation is exercised.
 
 - FastAPI service, async SQLite persistence, and migrations
 - Greenhouse, Lever, and Ashby public collectors
+- Curated, live-validated multi-platform source registry and runtime-config synchronization
 - Normalization, source and cross-source deduplication, and eligibility filtering
 - Collection CLI and API
 - Structured OpenAI recruiter evaluation with verified evidence, caching, and budgets

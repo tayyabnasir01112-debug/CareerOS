@@ -16,6 +16,13 @@ active or tracking-capable elements while preserving meaningful headings, lists,
 compensation text. Public source payloads are retained for traceability after recursively removing
 header-, cookie-, and authorization-shaped fields.
 
+`SourceRegistryValidator` maintains the discovery boundary separately from collection. Registry
+entries are strict platform/identifier records, never arbitrary request URLs. Validation maps each
+entry to one fixed public ATS endpoint, rejects redirects and authentication, verifies the expected
+JSON shape, records active-job state and UTC timestamps, and applies a seven-day TTL/cooldown.
+`sync_source_config` generates the runtime board lists from enabled valid entries while retaining
+the existing conservative collection settings.
+
 ## Deduplication and eligibility
 
 The collection service orchestrates each configured board or site independently. Database

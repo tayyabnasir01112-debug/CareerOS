@@ -229,9 +229,11 @@ Do not put webhook URLs or OpenAI keys in task arguments.
 
 ## Public collector configuration
 
-Collectors are opt-in in `config/source_config.yaml`; all tracked examples are disabled. Replace
-`example-company` with a real public board identifier, then set only the platform you want to use
-to `enabled: true`.
+`config/source_registry.yaml` is the maintainable source catalog. It records company display name,
+ATS platform and identifier, canonical public careers URL, categories, remote relevance, enabled
+state, active-job state, validation status, UTC validation time, and failure cooldown metadata.
+The committed registry contains 97 live-validated boards; the generated runtime subset enables 88
+active, remote-relevant boards: 37 Greenhouse, 23 Lever, and 28 Ashby.
 
 ```yaml
 greenhouse:
@@ -257,9 +259,25 @@ ashby:
   segment of `jobs.ashbyhq.com/{name}`; see the
   [Ashby public job postings guide](https://developers.ashbyhq.com/docs/public-job-posting-api).
 
+Validate the registry or one platform, explicitly force a refresh, then regenerate runtime config:
+
+```powershell
+python -m scripts.validate_sources
+python -m scripts.validate_sources --platform greenhouse
+python -m scripts.validate_sources --refresh
+python -m scripts.sync_source_config
+```
+
+Normal validation honors a seven-day validation TTL and invalid-source cooldown; `--refresh`
+explicitly rechecks the selected sources. Validation uses fixed public ATS endpoint templates,
+bounded async HTTP, no redirects, and no authentication. Invalid or protected candidates are
+disabled and never synced. `sync_source_config` preserves the shared collection settings while
+generating only enabled, currently valid identifiers. Use `--prune-invalid` after reviewing a
+discovery batch if invalid audit entries should be removed from the registry.
+
 The shared collection settings control the identifying User-Agent, timeout, limited retry count,
-exponential-backoff base, and a conservative connection limit. Invalid or disabled identifiers do
-not silently produce successful runs.
+exponential-backoff base, and a conservative connection limit. A failure from one board is recorded
+without stopping other configured boards.
 
 ## Running collectors from PowerShell
 
@@ -304,14 +322,15 @@ or site receives its own `CollectorRun` statistics record.
 - Collectors read only documented public job-board data. They do not submit applications, access
   private ATS APIs, authenticate, scrape search engines, or bypass CAPTCHA, rate limits, robots,
   access controls, or other platform protections.
-- CareerOS does not discover board identifiers automatically. Configure only organizations whose
-  public careers pages you intentionally want to research.
+- CareerOS does not guess or crawl for identifiers at runtime. Registry additions must be sourced
+  from a public careers page and pass `validate_sources` before sync.
 - ATS fields vary. Missing publication time, workplace type, employment type, or compensation is
   preserved as unknown and handled conservatively; undisclosed compensation is flagged.
 - Greenhouse custom metadata is not standardized, and Lever does not provide a general updated-at
   field. Ashby compensation can contain multiple geographic tiers; the collector preserves the full
   raw payload and uses only its public summary component for normalized numeric fields.
-- Collection is manual in this phase. No background scheduler is enabled.
+- A large enabled registry increases collection duration and public request volume. The defaults
+  intentionally use concurrency two and per-board isolation; curate `enabled` flags as needs change.
 
 ## Quality checks
 

@@ -24,5 +24,8 @@ versioning once stable releases begin.
   notification fingerprints.
 - End-to-end collection, eligibility, evaluation, and notification CLI/API orchestration.
 - Optional three-hour Windows Task Scheduler registration and removal scripts.
+- Curated public ATS source registry with fixed-endpoint validation, active-job metadata, UTC
+  timestamps, validation TTLs, invalid-source cooldowns, and runtime configuration synchronization.
+- Expanded runtime collection coverage across validated Greenhouse, Lever, and Ashby boards.
 
 [Unreleased]: https://github.com/tayyabnasir01112-debug/CareerOS/commits/main
