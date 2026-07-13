@@ -15,5 +15,10 @@ versioning once stable releases begin.
 - Collection CLI and API with per-source run statistics and partial-failure handling.
 - Structured JSON logging, credential redaction, secret scanning, and mocked tests.
 - GitHub Actions CI and public repository contribution templates.
+- Recruiter-style OpenAI evaluation through the async Responses API and Structured Outputs.
+- Versioned verified-evidence prompts, sanitized input preparation, and component fingerprints.
+- Successful-evaluation caching, UTC daily/per-run budgets, token accounting, and safe retries.
+- Evaluation CLI and paginated API endpoints with offline dry-run support.
+- Additive structured evaluation persistence and fully mocked provider tests.
 
 [Unreleased]: https://github.com/tayyabnasir01112-debug/CareerOS/commits/main

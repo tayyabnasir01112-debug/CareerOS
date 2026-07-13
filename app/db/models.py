@@ -123,14 +123,30 @@ class JobEvaluation(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
-    match_score: Mapped[float] = mapped_column(Float)
-    recommendation: Mapped[str] = mapped_column(String(50))
-    summary: Mapped[str] = mapped_column(Text)
+    match_score: Mapped[float | None] = mapped_column(Float)
+    recommendation: Mapped[str | None] = mapped_column(String(50))
+    summary: Mapped[str | None] = mapped_column(Text)
     strengths: Mapped[list[str]] = mapped_column(JSON, default=list)
     gaps: Mapped[list[str]] = mapped_column(JSON, default=list)
     model_name: Mapped[str] = mapped_column(String(100))
     prompt_version: Mapped[str] = mapped_column(String(50))
     evaluated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now)
+    evaluator_type: Mapped[str] = mapped_column(String(50), default="recruiter")
+    structured_result: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    should_prepare_application: Mapped[bool] = mapped_column(default=False)
+    input_hash: Mapped[str] = mapped_column(String(64), index=True)
+    job_content_fingerprint: Mapped[str] = mapped_column(String(64))
+    candidate_profile_fingerprint: Mapped[str] = mapped_column(String(64))
+    preference_fingerprint: Mapped[str] = mapped_column(String(64))
+    prompt_fingerprint: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(30), index=True)
+    api_response_id: Mapped[str | None] = mapped_column(String(255))
+    input_tokens: Mapped[int | None]
+    output_tokens: Mapped[int | None]
+    total_tokens: Mapped[int | None]
+    duration_ms: Mapped[int | None]
+    error_category: Mapped[str | None] = mapped_column(String(50))
+    error_summary: Mapped[str | None] = mapped_column(String(500))
 
     job: Mapped[Job] = relationship(back_populates="evaluations")
 

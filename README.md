@@ -20,11 +20,11 @@ Implemented now:
 - Source-level and cross-source deterministic deduplication
 - Rule-based eligibility filtering
 - CLI and API collection with partial-failure statistics
+- Verified recruiter-style OpenAI evaluation with structured outputs, caching, and strict budgets
 - Mocked testing, strict static analysis, secret scanning, and GitHub Actions CI
 
 Planned:
 
-- OpenAI recruiter evaluation using the verified candidate profile
 - Attributable company research
 - Resume optimization
 - Tailored application writing and preparation packages
@@ -44,8 +44,8 @@ CareerOS uses service-oriented internal boundaries:
 4. SQLAlchemy services persist companies, jobs, evaluations, packages, and collector-run audit
    records in SQLite for local use.
 5. FastAPI routes and the PowerShell-compatible CLI call the same business services.
-6. A future AI evaluation service will consume only verified profiles and eligible stored jobs; it
-   is deliberately outside the current collection pipeline.
+6. The recruiter evaluation service sends only sanitized normalized job data and verified profile
+   facts to the configured OpenAI model, then validates and persists structured output.
 
 More detail is available in [docs/architecture.md](docs/architecture.md).
 
@@ -77,8 +77,92 @@ Open `http://127.0.0.1:8000/docs` for the API documentation. Collection can also
 All `CAREEROS_*` settings can be changed in `.env` or as process environment variables. Candidate
 facts and job preferences live in validated YAML files under `config/`. Missing or malformed files
 produce an actionable startup error. Do not put secrets or private resume details in tracked YAML.
-The `OPENAI_API_KEY` and `DISCORD_WEBHOOK_URL` names in `.env.example` are reserved for later work
-and are not read or used by the current application.
+`OPENAI_API_KEY` configures recruiter evaluation, while `DISCORD_WEBHOOK_URL` remains reserved and
+unused. The OpenAI key is read only when a non-dry recruiter evaluation runs.
+
+## Recruiter evaluation
+
+CareerOS evaluates eligible or review-flagged jobs against the verified YAML profile through the
+OpenAI Responses API and Pydantic Structured Outputs. The configured default is `gpt-5.4-mini`; set
+`OPENAI_RECRUITER_MODEL` to another Structured-Outputs-capable model available to your OpenAI
+project. Model names live in configuration, not business logic.
+
+Create the local environment file if needed, then edit it without printing the key in terminal
+history:
+
+```powershell
+Copy-Item .env.example .env -ErrorAction SilentlyContinue
+notepad .env
+python -m scripts.init_db
+```
+
+Set these entries in `.env`:
+
+```dotenv
+OPENAI_API_KEY=
+OPENAI_RECRUITER_MODEL=gpt-5.4-mini
+OPENAI_MAX_EVALUATIONS_PER_RUN=10
+OPENAI_MAX_EVALUATIONS_PER_DAY=25
+OPENAI_MAX_INPUT_CHARACTERS=18000
+OPENAI_REQUEST_TIMEOUT_SECONDS=45
+```
+
+Leave `OPENAI_API_KEY` blank until you intentionally run a live evaluation. Start with an offline
+dry run, which performs selection, sanitization, truncation, and fingerprinting but makes no OpenAI
+call and creates no successful evaluation record:
+
+```powershell
+python -m scripts.evaluate_jobs --dry-run --limit 5
+```
+
+Evaluate one controlled job or a bounded batch:
+
+```powershell
+python -m scripts.evaluate_jobs --job-id 123 --limit 1
+python -m scripts.evaluate_jobs --limit 5
+python -m scripts.evaluate_jobs --minimum-rule-score 75
+python -m scripts.evaluate_jobs --job-id 123 --force
+```
+
+The API equivalents are `POST /evaluations/run`, `GET /evaluations`,
+`GET /evaluations/{evaluation_id}`, and `GET /jobs/{job_id}/evaluation`. API callers may select a
+job, limit, force mode, and dry-run mode, but cannot override credentials, model, prompt files, or
+budgets.
+
+Successful cache reuse requires unchanged job content, candidate profile, preferences, prompt
+content/version, and model. Failed evaluations can be retried; `--force` intentionally bypasses a
+successful cache entry. API attempts—including failures—count against the UTC daily budget. Cached,
+dry-run, and deterministic-ineligible outcomes do not spend that budget. Summaries report token
+usage but never estimate price from hardcoded rates.
+
+### Information sent to OpenAI
+
+- Normalized title, company, location, workplace and employment type
+- Sanitized description, compensation, and public listing dates
+- Verified facts from `candidate_profile.yaml`
+- Job preferences and deterministic eligibility reasons
+- Verified achievements and public professional portfolio links
+
+CareerOS never sends raw collector payloads, request headers, cookies, API keys, local paths, phone
+numbers, resumes, generated applications, or unrelated personal information. It does not request
+tools, web search, file search, code execution, computer use, or hidden reasoning. It stores only
+the validated evaluation plus minimal response ID, token counts, duration, cache fingerprints, and
+sanitized errors—not full OpenAI responses or chain-of-thought.
+
+### Evaluation troubleshooting
+
+- `configuration_error`: add the key to the ignored `.env` file and confirm the model setting.
+- `authentication_error` or `permission_error`: rotate or correct the key and verify model access.
+- `quota_error`: resolve project billing or quota; CareerOS does not retry quota exhaustion.
+- `rate_limit_error`, `timeout_error`, or `transient_provider_error`: transient calls use limited
+  exponential retries with jitter, then persist a safe retryable failure.
+- `invalid_structured_output`: retry the failed job; the malformed provider body is never stored.
+- No jobs considered: collect jobs, apply migrations, and confirm listing age and rule eligibility.
+
+Current limitations: listing expiry is enforced only where normalized date data exists; the
+candidate YAML currently contains verified achievements but no individually verified portfolio
+project catalog, so project recommendations remain empty; evaluation concurrency is deliberately
+one request at a time.
 
 ## Public collector configuration
 

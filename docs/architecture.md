@@ -41,8 +41,27 @@ statistics. No background scheduler is active.
 
 ## Future AI evaluation boundary
 
-A later evaluation service may read verified candidate configuration and eligible stored jobs, then
-call the OpenAI API using versioned prompts and structured outputs. It must never invent candidate
-experience, mutate collection rules, or hide model provenance. OpenAI calls, company research,
-application generation, Discord delivery, scheduling, analytics, and frontend work remain outside
-the implemented release.
+The implemented recruiter evaluation boundary has four explicit services:
+
+- `EvaluationInputBuilder` creates sanitized, size-bounded prompts and deterministic component
+  fingerprints from normalized jobs, verified configuration, eligibility, and versioned prompt
+  files. Raw collector payloads never cross this boundary.
+- `RecruiterEvaluator` owns limited transient retries and delegates one prepared input to the
+  injected provider interface.
+- `OpenAIRecruiterEvaluationProvider` uses the async Responses API with Pydantic Structured Outputs,
+  no tools, no streaming, and provider-side storage disabled. Tests inject
+  `FakeRecruiterEvaluationProvider` and never contact OpenAI.
+- `EvaluationRepository` and `EvaluationOrchestrator` own persistence, successful-result caching,
+  UTC daily and per-run budgets, deterministic selection, failure isolation, and token summaries.
+
+Cache identity combines job content, candidate profile, job preferences, prompt content/version,
+and configured model. Failed calls remain retryable; deterministic ineligibility spends no API
+request. Authentication, permission, and quota failures stop a batch because further calls cannot
+meaningfully succeed. The default concurrency is intentionally one.
+
+Versioned prompts prohibit invented experience, protected-characteristic decisions, unsupported
+hiring-likelihood claims, hidden reasoning disclosure, and instructions embedded in job data. Only
+the validated user-facing result and minimal API metadata are persisted.
+
+Company research, resume changes, application generation, Discord delivery, scheduling, analytics,
+and frontend work remain outside the implemented release.

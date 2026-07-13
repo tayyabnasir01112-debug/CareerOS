@@ -6,9 +6,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_session, get_settings
 from app.core.config import Settings
+from app.schemas.evaluation import (
+    EvaluationRead,
+    EvaluationRunOptions,
+    EvaluationRunSummary,
+    PaginatedEvaluations,
+)
 from app.schemas.models import JobRead, PaginatedJobs, PaginatedRuns
 from app.schemas.pipeline import CollectionSummary, CollectorPlatform
 from app.services.collection import collect_configured_jobs
+from app.services.evaluation_orchestrator import run_configured_evaluations
+from app.services.evaluation_repository import EvaluationRepository
 from app.services.health import HealthService
 from app.services.jobs import CollectorRunQueryService, JobQueryService
 
@@ -78,3 +86,50 @@ async def collect_jobs(
     source: Annotated[CollectorPlatform | None, Query()] = None,
 ) -> CollectionSummary:
     return await collect_configured_jobs(session, settings, source=source)
+
+
+@router.post("/evaluations/run", response_model=EvaluationRunSummary)
+async def run_evaluations(
+    options: EvaluationRunOptions,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> EvaluationRunSummary:
+    return await run_configured_evaluations(session, settings, options)
+
+
+@router.get("/evaluations", response_model=PaginatedEvaluations)
+async def list_evaluations(
+    session: SessionDependency,
+    settings: SettingsDependency,
+    limit: Annotated[int | None, Query(ge=1, le=200)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> PaginatedEvaluations:
+    page_limit = limit or settings.api_page_size
+    items, total = await EvaluationRepository(session).list_evaluations(
+        limit=page_limit, offset=offset
+    )
+    return PaginatedEvaluations(
+        items=[EvaluationRead.model_validate(item) for item in items],
+        total=total,
+        limit=page_limit,
+        offset=offset,
+    )
+
+
+@router.get("/evaluations/{evaluation_id}", response_model=EvaluationRead)
+async def get_evaluation(evaluation_id: int, session: SessionDependency) -> EvaluationRead:
+    evaluation = await EvaluationRepository(session).get_evaluation(evaluation_id)
+    if evaluation is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evaluation not found")
+    return EvaluationRead.model_validate(evaluation)
+
+
+@router.get("/jobs/{job_id}/evaluation", response_model=EvaluationRead)
+async def get_job_evaluation(job_id: int, session: SessionDependency) -> EvaluationRead:
+    evaluation = await EvaluationRepository(session).get_latest_for_job(job_id)
+    if evaluation is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No evaluation found for this job",
+        )
+    return EvaluationRead.model_validate(evaluation)

@@ -26,6 +26,7 @@ python -m pytest
 - Use documented public endpoints; never bypass authentication, CAPTCHA, access controls, or rate
   limits.
 - Mock all external HTTP traffic in tests.
+- Inject a fake recruiter provider in tests; no test or CI job may contact the live OpenAI API.
 - Never invent candidate facts or commit credentials, resumes, databases, generated applications,
   logs, or private job data.
 - Preserve typed functions, strict Mypy compatibility, deterministic behavior, and UTC timestamps.
