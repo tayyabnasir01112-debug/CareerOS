@@ -109,6 +109,44 @@ async def test_success_persistence_cache_reuse_and_force(tmp_path: Path) -> None
 
 
 @pytest.mark.asyncio
+async def test_selection_prioritizes_unevaluated_eligible_backlog(tmp_path: Path) -> None:
+    settings = settings_for(tmp_path / "selection-priority.db")
+    database = Database(settings.database_url)
+    await database.create_schema()
+    profile, preferences = configuration()
+    try:
+        async with database.session_factory() as session:
+            cached_job = await add_job(session, external_id="already-evaluated")
+            await session.commit()
+            await EvaluationOrchestrator(
+                session,
+                settings,
+                profile,
+                preferences,
+                FakeRecruiterEvaluationProvider([provider_evaluation()]),
+            ).run(EvaluationRunOptions(job_id=cached_job.id))
+
+            await add_job(
+                session,
+                external_id="newest-rejected",
+                eligibility_status=EligibilityStatus.REJECTED,
+            )
+            backlog_job = await add_job(session, external_id="eligible-backlog")
+            await session.commit()
+
+            provider = FakeRecruiterEvaluationProvider([provider_evaluation()])
+            summary = await EvaluationOrchestrator(
+                session, settings, profile, preferences, provider
+            ).run(EvaluationRunOptions(limit=1))
+
+            assert summary.evaluations_completed == 1
+            assert len(provider.calls) == 1
+            assert provider.calls[0].job_id == backlog_job.id
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
 async def test_failed_evaluation_is_retried_on_later_run(tmp_path: Path) -> None:
     settings = settings_for(tmp_path / "retry-failed.db", openai_max_retries=0)
     database = Database(settings.database_url)

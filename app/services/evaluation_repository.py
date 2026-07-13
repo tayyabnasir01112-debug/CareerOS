@@ -1,11 +1,11 @@
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models import Job, JobEvaluation
+from app.db.models import EligibilityStatus, Job, JobEvaluation
 from app.schemas.evaluation import (
     EvaluationErrorCategory,
     EvaluationStatus,
@@ -20,10 +20,34 @@ class EvaluationRepository:
         self.session = session
 
     async def select_jobs(self, *, job_id: int | None, limit: int) -> list[Job]:
+        successful_evaluation_exists = (
+            select(JobEvaluation.id)
+            .where(
+                JobEvaluation.job_id == Job.id,
+                JobEvaluation.status == EvaluationStatus.SUCCESS.value,
+            )
+            .exists()
+        )
+        eligibility_priority = case(
+            (
+                Job.eligibility_status.in_(
+                    [EligibilityStatus.ELIGIBLE.value, EligibilityStatus.FLAGGED.value]
+                ),
+                0,
+            ),
+            (Job.eligibility_status == EligibilityStatus.REJECTED.value, 1),
+            else_=2,
+        )
         statement = (
             select(Job)
             .options(selectinload(Job.company))
-            .order_by(Job.discovered_at.desc(), Job.id.desc())
+            .order_by(
+                eligibility_priority,
+                successful_evaluation_exists,
+                func.coalesce(Job.published_at, Job.source_updated_at).desc(),
+                Job.discovered_at.desc(),
+                Job.id.desc(),
+            )
             .limit(limit)
         )
         if job_id is not None:
