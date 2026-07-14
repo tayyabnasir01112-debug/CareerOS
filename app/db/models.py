@@ -38,6 +38,18 @@ class LocationType(StrEnum):
     UNKNOWN = "unknown"
 
 
+class LocationEligibilityClassification(StrEnum):
+    REMOTE_WORLDWIDE_ELIGIBLE = "remote_worldwide_eligible"
+    REMOTE_REGION_ELIGIBLE = "remote_region_eligible"
+    REMOTE_LOCATION_RESTRICTED = "remote_location_restricted"
+    PAKISTAN_ONSITE_ELIGIBLE = "pakistan_onsite_eligible"
+    FOREIGN_ONSITE_WITH_RELOCATION = "foreign_onsite_with_relocation"
+    FOREIGN_ONSITE_WITHOUT_RELOCATION = "foreign_onsite_without_relocation"
+    FOREIGN_HYBRID_WITH_RELOCATION = "foreign_hybrid_with_relocation"
+    FOREIGN_HYBRID_WITHOUT_RELOCATION = "foreign_hybrid_without_relocation"
+    UNCLEAR = "unclear"
+
+
 class EligibilityStatus(StrEnum):
     PENDING = "pending"
     ELIGIBLE = "eligible"
@@ -118,6 +130,13 @@ class Job(TimestampMixin, Base):
         Enum(EligibilityStatus, native_enum=False), default=EligibilityStatus.PENDING
     )
     eligibility_reasons: Mapped[list[str]] = mapped_column(JSON, default=list)
+    location_classification: Mapped[LocationEligibilityClassification] = mapped_column(
+        Enum(LocationEligibilityClassification, native_enum=False),
+        default=LocationEligibilityClassification.UNCLEAR,
+        index=True,
+    )
+    location_evidence: Mapped[list[str]] = mapped_column(JSON, default=list)
+    deterministic_pre_score: Mapped[int] = mapped_column(default=0, index=True)
 
     company: Mapped[Company] = relationship(back_populates="jobs")
     evaluations: Mapped[list["JobEvaluation"]] = relationship(back_populates="job")

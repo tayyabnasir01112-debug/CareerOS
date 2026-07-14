@@ -78,14 +78,20 @@ class RecruiterEvaluationResult(BaseModel):
     seniority_assessment: SeniorityAssessment
     compensation_assessment: CompensationAssessment
     location_assessment: LocationAssessment
-    matched_skills: list[str] = Field(max_length=12)
-    missing_required_skills: list[str] = Field(max_length=10)
-    transferable_skills: list[str] = Field(max_length=8)
-    strongest_verified_evidence: list[str] = Field(max_length=6)
-    concerns: list[str] = Field(max_length=8)
-    recommended_portfolio_projects: list[str] = Field(max_length=4)
-    tailored_positioning: str = Field(min_length=1, max_length=800)
-    evaluation_summary: str = Field(min_length=1, max_length=1200)
+    matched_skills: list[str] = Field(max_length=12, description="At most 12 concise items")
+    missing_required_skills: list[str] = Field(
+        max_length=10, description="At most 10 concise required-skill gaps"
+    )
+    transferable_skills: list[str] = Field(max_length=8, description="At most 8 concise items")
+    strongest_verified_evidence: list[str] = Field(
+        max_length=6, description="At most 6 concise verified facts"
+    )
+    concerns: list[str] = Field(max_length=8, description="At most 8 concise concerns")
+    recommended_portfolio_projects: list[str] = Field(
+        max_length=4, description="At most 4 verified projects; usually empty"
+    )
+    tailored_positioning: str = Field(min_length=1, max_length=500)
+    evaluation_summary: str = Field(min_length=1, max_length=700)
     should_prepare_application: bool
 
 
@@ -133,6 +139,8 @@ class EvaluationRunSummary(BaseModel):
     cached_evaluations_reused: int = 0
     skipped_by_deterministic_eligibility: int = 0
     skipped_by_score_or_status_rules: int = 0
+    skipped_by_location: int = 0
+    skipped_by_daily_budget: int = 0
     failed_evaluations: int = 0
     daily_budget_remaining: int = 0
     total_input_tokens: int = 0

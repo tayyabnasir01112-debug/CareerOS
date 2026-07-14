@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.security import redact_sensitive_text
-from app.db.models import EligibilityStatus, Job
+from app.db.models import EligibilityStatus, Job, LocationEligibilityClassification
 from app.schemas.configuration import CandidateProfile, JobPreferences
 from app.schemas.evaluation import (
     CompensationAssessment,
@@ -31,6 +31,7 @@ from app.services.evaluation_provider import (
     RecruiterEvaluator,
 )
 from app.services.evaluation_repository import EvaluationRepository
+from app.services.location_eligibility import ELIGIBLE_LOCATION_CLASSIFICATIONS
 
 
 class EvaluationOrchestrator:
@@ -89,6 +90,16 @@ class EvaluationOrchestrator:
                 continue
 
             rule_score = self.builder.rule_score(job.eligibility_status)
+            if job.location_classification not in ELIGIBLE_LOCATION_CLASSIFICATIONS:
+                if job.location_classification == LocationEligibilityClassification.UNCLEAR:
+                    summary.skipped_by_location += 1
+                    continue
+                summary.skipped_by_deterministic_eligibility += 1
+                summary.skipped_by_location += 1
+                if not options.dry_run:
+                    await self.repository.save_ineligible(prepared, self._ineligible_result(job))
+                    await self.session.commit()
+                continue
             if job.eligibility_status == EligibilityStatus.REJECTED:
                 summary.skipped_by_deterministic_eligibility += 1
                 if not options.dry_run:
@@ -122,6 +133,7 @@ class EvaluationOrchestrator:
                 continue
             if daily_used + requested_this_run >= self.settings.openai_max_evaluations_per_day:
                 summary.skipped_by_score_or_status_rules += 1
+                summary.skipped_by_daily_budget += 1
                 continue
             if self.evaluator is None:
                 summary.failed_evaluations += 1
@@ -175,7 +187,9 @@ class EvaluationOrchestrator:
 
     @staticmethod
     def _ineligible_result(job: Job) -> RecruiterEvaluationResult:
-        reasons = job.eligibility_reasons[:8] or ["Deterministic eligibility rejected the job"]
+        reasons = (job.location_evidence + job.eligibility_reasons)[:8] or [
+            "Deterministic eligibility rejected the job"
+        ]
         return RecruiterEvaluationResult(
             recommendation=Recommendation.INELIGIBLE,
             match_score=0,

@@ -5,7 +5,12 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models import EligibilityStatus, Job, JobEvaluation
+from app.db.models import (
+    EligibilityStatus,
+    Job,
+    JobEvaluation,
+    LocationEligibilityClassification,
+)
 from app.schemas.evaluation import (
     EvaluationErrorCategory,
     EvaluationStatus,
@@ -13,6 +18,8 @@ from app.schemas.evaluation import (
     ProviderEvaluation,
     RecruiterEvaluationResult,
 )
+from app.services.evaluation_priority import MINIMUM_USEFUL_PRE_SCORE
+from app.services.location_eligibility import ELIGIBLE_LOCATION_CLASSIFICATIONS
 
 
 class EvaluationRepository:
@@ -38,13 +45,39 @@ class EvaluationRepository:
             (Job.eligibility_status == EligibilityStatus.REJECTED.value, 1),
             else_=2,
         )
+        any_evaluation_exists = (
+            select(JobEvaluation.id).where(JobEvaluation.job_id == Job.id).exists()
+        )
+        location_priority = case(
+            (
+                Job.location_classification
+                == LocationEligibilityClassification.REMOTE_WORLDWIDE_ELIGIBLE,
+                0,
+            ),
+            (
+                Job.location_classification
+                == LocationEligibilityClassification.REMOTE_REGION_ELIGIBLE,
+                1,
+            ),
+            (
+                Job.location_classification
+                == LocationEligibilityClassification.PAKISTAN_ONSITE_ELIGIBLE,
+                2,
+            ),
+            else_=3,
+        )
         statement = (
             select(Job)
             .options(selectinload(Job.company))
             .order_by(
                 eligibility_priority,
+                location_priority,
+                any_evaluation_exists,
                 successful_evaluation_exists,
                 func.coalesce(Job.published_at, Job.source_updated_at).desc(),
+                Job.deterministic_pre_score.desc(),
+                case((Job.compensation_currency.is_not(None), 0), else_=1),
+                func.length(Job.description).desc(),
                 Job.discovered_at.desc(),
                 Job.id.desc(),
             )
@@ -52,6 +85,12 @@ class EvaluationRepository:
         )
         if job_id is not None:
             statement = statement.where(Job.id == job_id)
+        else:
+            statement = statement.where(
+                Job.eligibility_status.in_([EligibilityStatus.ELIGIBLE, EligibilityStatus.FLAGGED]),
+                Job.location_classification.in_(list(ELIGIBLE_LOCATION_CLASSIFICATIONS)),
+                Job.deterministic_pre_score >= MINIMUM_USEFUL_PRE_SCORE,
+            )
         return list((await self.session.scalars(statement)).all())
 
     async def find_cached(self, prepared: PreparedEvaluationInput) -> JobEvaluation | None:

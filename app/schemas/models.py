@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.db.models import (
     EligibilityStatus,
     EmploymentType,
+    LocationEligibilityClassification,
     LocationType,
     PackageStatus,
     RunStatus,
@@ -56,6 +57,11 @@ class JobBase(BaseModel):
     compensation_period: str | None = None
     eligibility_status: EligibilityStatus = EligibilityStatus.PENDING
     eligibility_reasons: list[str] = Field(default_factory=list)
+    location_classification: LocationEligibilityClassification = (
+        LocationEligibilityClassification.UNCLEAR
+    )
+    location_evidence: list[str] = Field(default_factory=list)
+    deterministic_pre_score: int = Field(default=0, ge=0, le=100)
 
 
 class JobCreate(JobBase):

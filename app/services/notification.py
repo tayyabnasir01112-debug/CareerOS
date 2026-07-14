@@ -29,6 +29,7 @@ from app.schemas.notification import (
     PaginatedNotifications,
 )
 from app.services.evaluation_input import sanitize_prompt_text
+from app.services.location_eligibility import ELIGIBLE_LOCATION_CLASSIFICATIONS
 
 _MAX_RESPONSE_BYTES = 65_536
 _ALLOWED_RECOMMENDATIONS = {
@@ -315,7 +316,17 @@ class NotificationRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def candidates(self, *, minimum_score: int, limit: int) -> list[JobEvaluation]:
+    async def candidates(
+        self,
+        *,
+        minimum_score: int,
+        limit: int,
+        notify_consider: bool = True,
+        require_confirmed_location: bool = True,
+    ) -> list[JobEvaluation]:
+        recommendations = [Recommendation.STRONG_APPLY.value, Recommendation.APPLY.value]
+        if notify_consider:
+            recommendations.append(Recommendation.CONSIDER.value)
         statement = (
             select(JobEvaluation)
             .join(JobEvaluation.job)
@@ -323,9 +334,24 @@ class NotificationRepository:
             .where(
                 JobEvaluation.status == "success",
                 JobEvaluation.match_score >= minimum_score,
-                JobEvaluation.recommendation.in_([item.value for item in _ALLOWED_RECOMMENDATIONS]),
+                JobEvaluation.recommendation.in_(recommendations),
                 Job.eligibility_status.in_([EligibilityStatus.ELIGIBLE, EligibilityStatus.FLAGGED]),
             )
+            .order_by(JobEvaluation.created_at.desc(), JobEvaluation.id.desc())
+            .limit(limit)
+        )
+        if require_confirmed_location:
+            statement = statement.where(
+                Job.location_classification.in_(list(ELIGIBLE_LOCATION_CLASSIFICATIONS))
+            )
+        return list((await self.session.scalars(statement)).all())
+
+    async def recent_successful(self, *, limit: int) -> list[JobEvaluation]:
+        statement = (
+            select(JobEvaluation)
+            .join(JobEvaluation.job)
+            .options(selectinload(JobEvaluation.job).selectinload(Job.company))
+            .where(JobEvaluation.status == "success")
             .order_by(JobEvaluation.created_at.desc(), JobEvaluation.id.desc())
             .limit(limit)
         )
@@ -421,25 +447,51 @@ class DiscordNotificationService:
         self.formatter = JobNotificationFormatter()
 
     async def run(
-        self, *, minimum_score: int, limit: int, dry_run: bool = False
+        self,
+        *,
+        minimum_score: int,
+        limit: int,
+        dry_run: bool = False,
+        notify_consider: bool = True,
+        require_confirmed_location: bool = True,
     ) -> NotificationRunSummary:
         summary = NotificationRunSummary()
-        evaluations = await self.repository.candidates(
-            minimum_score=minimum_score,
-            limit=max(limit * 20, limit),
-        )
+        evaluations = await self.repository.recent_successful(limit=max(limit * 50, 100))
         delivery_attempts = 0
         for index, evaluation in enumerate(evaluations):
+            suppression = self._suppression_reason(
+                evaluation,
+                minimum_score=minimum_score,
+                notify_consider=notify_consider,
+                require_confirmed_location=require_confirmed_location,
+            )
+            if suppression is not None:
+                summary.notifications_skipped += 1
+                summary.suppression_reasons[suppression] = (
+                    summary.suppression_reasons.get(suppression, 0) + 1
+                )
+                continue
             fingerprint = evaluation_notification_fingerprint(evaluation)
             existing = await self.repository.get_by_fingerprint(fingerprint)
             if existing is not None and existing.status == NotificationStatus.SENT:
                 summary.notifications_skipped += 1
+                summary.suppression_reasons["already_notified"] = (
+                    summary.suppression_reasons.get("already_notified", 0) + 1
+                )
                 continue
             if dry_run:
                 summary.notifications_skipped += 1
+                summary.suppression_reasons["dry_run"] = (
+                    summary.suppression_reasons.get("dry_run", 0) + 1
+                )
                 continue
             if delivery_attempts >= limit:
                 summary.notifications_skipped += len(evaluations) - index
+                summary.suppression_reasons["notification_limit"] = (
+                    summary.suppression_reasons.get("notification_limit", 0)
+                    + len(evaluations)
+                    - index
+                )
                 break
             delivery_attempts += 1
             result = RecruiterEvaluationResult.model_validate(evaluation.structured_result)
@@ -457,3 +509,27 @@ class DiscordNotificationService:
             await self.session.commit()
             summary.notifications_sent += 1
         return summary
+
+    @staticmethod
+    def _suppression_reason(
+        evaluation: JobEvaluation,
+        *,
+        minimum_score: int,
+        notify_consider: bool,
+        require_confirmed_location: bool,
+    ) -> str | None:
+        job = evaluation.job
+        if job.eligibility_status not in {EligibilityStatus.ELIGIBLE, EligibilityStatus.FLAGGED}:
+            return "deterministic_eligibility"
+        if require_confirmed_location and (
+            job.location_classification not in ELIGIBLE_LOCATION_CLASSIFICATIONS
+        ):
+            return f"location:{job.location_classification.value}"
+        if evaluation.match_score is None or evaluation.match_score < minimum_score:
+            return "below_match_threshold"
+        allowed = {Recommendation.STRONG_APPLY.value, Recommendation.APPLY.value}
+        if notify_consider:
+            allowed.add(Recommendation.CONSIDER.value)
+        if evaluation.recommendation not in allowed:
+            return "recommendation_excluded"
+        return None

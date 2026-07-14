@@ -10,7 +10,7 @@ from app.db.models import EligibilityStatus, Job
 from app.schemas.configuration import CandidateProfile, JobPreferences
 from app.schemas.evaluation import PreparedEvaluationInput
 
-PROMPT_VERSION = "recruiter_v1"
+PROMPT_VERSION = "recruiter_v2"
 _CONTROL_CHARACTERS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _LABELED_PHONE = re.compile(
     r"\b(?:phone|telephone|tel|mobile)\s*[:=]\s*\+?[\d().\s-]{7,25}", re.IGNORECASE
@@ -66,8 +66,8 @@ class EvaluationInputBuilder:
         self.maximum_characters = maximum_characters
         self.model = model
         prompt_root = Path(__file__).parents[1] / "prompts" / "recruiter"
-        self.system_prompt = (prompt_root / "system_v1.txt").read_text(encoding="utf-8").strip()
-        self.user_template = (prompt_root / "user_v1.txt").read_text(encoding="utf-8").strip()
+        self.system_prompt = (prompt_root / "system_v2.txt").read_text(encoding="utf-8").strip()
+        self.user_template = (prompt_root / "user_v2.txt").read_text(encoding="utf-8").strip()
         self.prompt_fingerprint = canonical_fingerprint(
             {
                 "version": PROMPT_VERSION,
@@ -91,6 +91,9 @@ class EvaluationInputBuilder:
                 "status": job.eligibility_status.value,
                 "reasons": job.eligibility_reasons,
                 "rule_score": self.rule_score(job.eligibility_status),
+                "location_classification": job.location_classification.value,
+                "location_evidence": job.location_evidence,
+                "deterministic_pre_score": job.deterministic_pre_score,
             }
         )
         portfolio_data = sanitize_prompt_value(
@@ -183,6 +186,8 @@ class EvaluationInputBuilder:
             "company": sanitize_prompt_text(job.company.name),
             "location": sanitize_prompt_text(job.location or "undisclosed"),
             "location_type": job.location_type.value,
+            "location_classification": job.location_classification.value,
+            "location_evidence": job.location_evidence,
             "employment_type": job.employment_type.value,
             "description": description,
             "salary_text": sanitize_prompt_text(job.salary_text or "undisclosed"),

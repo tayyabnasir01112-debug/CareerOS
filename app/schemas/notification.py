@@ -36,6 +36,7 @@ class NotificationRunSummary(BaseModel):
     notifications_skipped: int = 0
     notification_failures: int = 0
     errors: list[str] = Field(default_factory=list)
+    suppression_reasons: dict[str, int] = Field(default_factory=dict)
 
 
 class PipelineRunOptions(BaseModel):
@@ -71,6 +72,7 @@ class CareerPipelineSummary(BaseModel):
     total_output_tokens: int = 0
     daily_evaluation_budget_remaining: int = 0
     errors: list[str] = Field(default_factory=list)
+    notification_suppression_reasons: dict[str, int] = Field(default_factory=dict)
 
 
 class NotificationRead(BaseModel):

@@ -31,10 +31,10 @@ class Settings(BaseSettings):
         default="gpt-5.4-mini", validation_alias="OPENAI_RECRUITER_MODEL", min_length=1
     )
     openai_max_evaluations_per_run: int = Field(
-        default=10, validation_alias="OPENAI_MAX_EVALUATIONS_PER_RUN", ge=1, le=100
+        default=5, validation_alias="OPENAI_MAX_EVALUATIONS_PER_RUN", ge=1, le=100
     )
     openai_max_evaluations_per_day: int = Field(
-        default=25, validation_alias="OPENAI_MAX_EVALUATIONS_PER_DAY", ge=1, le=1000
+        default=20, validation_alias="OPENAI_MAX_EVALUATIONS_PER_DAY", ge=1, le=1000
     )
     openai_max_input_characters: int = Field(
         default=18_000, validation_alias="OPENAI_MAX_INPUT_CHARACTERS", ge=2000, le=100_000
@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     )
     discord_minimum_match_score: int = Field(
         default=75, validation_alias="DISCORD_MINIMUM_MATCH_SCORE", ge=0, le=100
+    )
+    discord_notify_consider: bool = Field(default=True, validation_alias="DISCORD_NOTIFY_CONSIDER")
+    discord_require_confirmed_location: bool = Field(
+        default=True, validation_alias="DISCORD_REQUIRE_CONFIRMED_LOCATION"
     )
     discord_max_notifications_per_run: int = Field(
         default=5, validation_alias="DISCORD_MAX_NOTIFICATIONS_PER_RUN", ge=1, le=25

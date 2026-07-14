@@ -27,3 +27,7 @@ acknowledgement within seven days, followed by a remediation assessment.
   it from a later commit does not make the original credential safe.
 - Discord messages contain concise normalized job and evaluation fields only. Raw collector
   payloads, descriptions, prompts, provider responses, local paths, and credentials are excluded.
+- Discord delivery requires a deterministic confirmed-location classification. Candidate relocation
+  willingness and model output cannot substitute for explicit employer relocation or visa support.
+- Structured-output errors store only sanitized field paths and error categories, never malformed
+  response bodies or hidden reasoning.

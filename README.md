@@ -79,8 +79,8 @@ Open `http://127.0.0.1:8000/docs` for the API documentation. Collection can also
 All `CAREEROS_*` settings can be changed in `.env` or as process environment variables. Candidate
 facts and job preferences live in validated YAML files under `config/`. Missing or malformed files
 produce an actionable startup error. Do not put secrets or private resume details in tracked YAML.
-`OPENAI_API_KEY` configures recruiter evaluation, while `DISCORD_WEBHOOK_URL` remains reserved and
-unused. The OpenAI key is read only when a non-dry recruiter evaluation runs.
+`OPENAI_API_KEY` configures recruiter evaluation and `DISCORD_WEBHOOK_URL` configures optional
+notifications. Both remain only in the ignored `.env` file and are read only by live operations.
 
 ## Recruiter evaluation
 
@@ -103,8 +103,8 @@ Set these entries in `.env`:
 ```dotenv
 OPENAI_API_KEY=
 OPENAI_RECRUITER_MODEL=gpt-5.4-mini
-OPENAI_MAX_EVALUATIONS_PER_RUN=10
-OPENAI_MAX_EVALUATIONS_PER_DAY=25
+OPENAI_MAX_EVALUATIONS_PER_RUN=5
+OPENAI_MAX_EVALUATIONS_PER_DAY=20
 OPENAI_MAX_INPUT_CHARACTERS=18000
 OPENAI_REQUEST_TIMEOUT_SECONDS=45
 ```
@@ -158,7 +158,10 @@ sanitized errors—not full OpenAI responses or chain-of-thought.
 - `quota_error`: resolve project billing or quota; CareerOS does not retry quota exhaustion.
 - `rate_limit_error`, `timeout_error`, or `transient_provider_error`: transient calls use limited
   exponential retries with jitter, then persist a safe retryable failure.
-- `invalid_structured_output`: retry the failed job; the malformed provider body is never stored.
+- `invalid_structured_output`: CareerOS records only validation field paths, then makes one concise
+  schema-repair attempt. The malformed provider body is never stored. `gpt-5.4-mini` supports
+  Structured Outputs; if repeated failures continue and the project has access, configure
+  `OPENAI_RECRUITER_MODEL=gpt-5.4` for a higher-capability supported option.
 - No jobs considered: collect jobs, apply migrations, and confirm listing age and rule eligibility.
 
 Current limitations: listing expiry is enforced only where normalized date data exists; the
@@ -175,6 +178,8 @@ channel, and copy its URL. Place it only in the ignored local `.env` file:
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your-id/your-token
 DISCORD_NOTIFICATIONS_ENABLED=true
 DISCORD_MINIMUM_MATCH_SCORE=75
+DISCORD_NOTIFY_CONSIDER=true
+DISCORD_REQUIRE_CONFIRMED_LOCATION=true
 DISCORD_MAX_NOTIFICATIONS_PER_RUN=5
 DISCORD_REQUEST_TIMEOUT_SECONDS=20
 ```
@@ -189,8 +194,11 @@ python -m scripts.run_career_pipeline --all --no-notify
 ```
 
 Dry runs never call OpenAI or Discord. `--no-notify` still permits collection and evaluation but
-does not deliver messages. A Discord notification is eligible only for a successful evaluation at
-or above the configured score with `strong_apply`, `apply`, or `consider`. CareerOS hashes the
+does not deliver messages. A Discord notification requires successful deterministic eligibility,
+an explicitly eligible location classification, a successful evaluation at or above the configured
+score, and `strong_apply`, `apply`, or (when enabled) `consider`. Generic remote, unclear EMEA,
+country-restricted remote, and unsupported foreign onsite/hybrid roles are never auto-notified.
+CareerOS hashes the
 evaluation input, structured result, prompt version, and model, then stores that fingerprint with
 the delivery record. A sent fingerprint is never sent again; failed records remain retryable.
 
@@ -216,7 +224,19 @@ powershell -ExecutionPolicy Bypass -File .\scripts\unregister_windows_task.ps1
 Use `-IntervalHours 6` to choose another interval. The task uses the project's
 `.venv\Scripts\python.exe`, sets the project as its working directory, reads secrets from the local
 `.env`, runs with a hidden PowerShell window, prevents overlapping instances, and writes only the
-pipeline's sanitized JSON summary to `careeros-pipeline.log`.
+pipeline's sanitized JSON summary to `careeros-pipeline.log`. The task wakes the computer when
+Windows permits, starts after a missed trigger when the computer becomes available, and ignores a
+new trigger while a prior run is still active.
+
+### Deterministic location and queue priority
+
+Before OpenAI or Discord, CareerOS stores a location classification and concise evidence. Worldwide
+or APAC/Pakistan-confirmed remote roles and Pakistan onsite roles qualify. Foreign onsite/hybrid
+roles require explicit relocation, visa, or work-permit sponsorship. Country-restricted remote and
+unclear location records remain available for review but do not consume evaluation or notification
+slots. A deterministic 0-100 pre-score prioritizes target titles, verified skill overlap, confirmed
+location, recency, compatible employment, compensation, and description completeness; it is queue
+ordering only and never replaces the OpenAI match score.
 
 For manual Task Scheduler setup, create a repeating task with program `powershell.exe`, start in the
 CareerOS directory, and use arguments equivalent to:

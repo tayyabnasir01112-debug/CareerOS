@@ -4,7 +4,11 @@ import pytest
 from sqlalchemy import func, select
 
 from app.core.config import Settings
-from app.db.models import EligibilityStatus, JobEvaluation
+from app.db.models import (
+    EligibilityStatus,
+    JobEvaluation,
+    LocationEligibilityClassification,
+)
 from app.db.session import Database
 from app.schemas.configuration import CandidateProfile, JobPreferences
 from app.schemas.evaluation import (
@@ -49,7 +53,7 @@ async def test_deterministic_ineligibility_avoids_provider_call(tmp_path: Path) 
     provider = FakeRecruiterEvaluationProvider([])
     try:
         async with database.session_factory() as session:
-            await add_job(
+            job = await add_job(
                 session,
                 external_id="ineligible-1",
                 eligibility_status=EligibilityStatus.REJECTED,
@@ -58,7 +62,7 @@ async def test_deterministic_ineligibility_avoids_provider_call(tmp_path: Path) 
             await session.commit()
             summary = await EvaluationOrchestrator(
                 session, settings, profile, preferences, provider
-            ).run(EvaluationRunOptions())
+            ).run(EvaluationRunOptions(job_id=job.id))
             evaluation = await session.scalar(select(JobEvaluation))
 
             assert summary.skipped_by_deterministic_eligibility == 1
@@ -66,6 +70,90 @@ async def test_deterministic_ineligibility_avoids_provider_call(tmp_path: Path) 
             assert provider.calls == []
             assert evaluation is not None
             assert evaluation.status == EvaluationStatus.INELIGIBLE.value
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_location_rejection_cannot_be_overridden_by_provider(tmp_path: Path) -> None:
+    settings = settings_for(tmp_path / "location-rejected.db")
+    database = Database(settings.database_url)
+    await database.create_schema()
+    profile, preferences = configuration()
+    provider = FakeRecruiterEvaluationProvider([provider_evaluation()])
+    try:
+        async with database.session_factory() as session:
+            job = await add_job(session, external_id="singapore-onsite")
+            job.location = "Singapore"
+            job.location_classification = (
+                LocationEligibilityClassification.FOREIGN_ONSITE_WITHOUT_RELOCATION
+            )
+            job.location_evidence = ["foreign onsite listing has no relocation support"]
+            await session.commit()
+
+            summary = await EvaluationOrchestrator(
+                session, settings, profile, preferences, provider
+            ).run(EvaluationRunOptions(job_id=job.id))
+
+            assert summary.skipped_by_location == 1
+            assert summary.evaluations_requested == 0
+            assert provider.calls == []
+            evaluation = await session.scalar(select(JobEvaluation))
+            assert evaluation is not None
+            assert evaluation.status == EvaluationStatus.INELIGIBLE.value
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_weak_jobs_do_not_consume_evaluation_slots(tmp_path: Path) -> None:
+    settings = settings_for(tmp_path / "pre-score.db")
+    database = Database(settings.database_url)
+    await database.create_schema()
+    profile, preferences = configuration()
+    provider = FakeRecruiterEvaluationProvider([provider_evaluation()])
+    try:
+        async with database.session_factory() as session:
+            weak = await add_job(session, external_id="weak", title="Account Executive")
+            weak.deterministic_pre_score = 30
+            strong = await add_job(session, external_id="strong")
+            strong.deterministic_pre_score = 92
+            await session.commit()
+
+            summary = await EvaluationOrchestrator(
+                session, settings, profile, preferences, provider
+            ).run(EvaluationRunOptions(limit=1))
+
+            assert summary.evaluations_completed == 1
+            assert provider.calls[0].job_id == strong.id
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_worldwide_remote_has_priority_over_foreign_relocation(tmp_path: Path) -> None:
+    settings = settings_for(tmp_path / "location-priority.db")
+    database = Database(settings.database_url)
+    await database.create_schema()
+    profile, preferences = configuration()
+    provider = FakeRecruiterEvaluationProvider([provider_evaluation()])
+    try:
+        async with database.session_factory() as session:
+            relocation = await add_job(session, external_id="relocation")
+            relocation.location_classification = (
+                LocationEligibilityClassification.FOREIGN_ONSITE_WITH_RELOCATION
+            )
+            remote = await add_job(session, external_id="worldwide")
+            remote.location_classification = (
+                LocationEligibilityClassification.REMOTE_WORLDWIDE_ELIGIBLE
+            )
+            await session.commit()
+
+            await EvaluationOrchestrator(session, settings, profile, preferences, provider).run(
+                EvaluationRunOptions(limit=1)
+            )
+
+            assert provider.calls[0].job_id == remote.id
     finally:
         await database.dispose()
 
@@ -253,6 +341,12 @@ async def test_partial_failure_continues_but_authentication_failure_stops(tmp_pa
                     ProviderFailure(
                         EvaluationErrorCategory.INVALID_STRUCTURED_OUTPUT,
                         "invalid output",
+                        repairable=True,
+                    ),
+                    ProviderFailure(
+                        EvaluationErrorCategory.INVALID_STRUCTURED_OUTPUT,
+                        "repair output was invalid",
+                        repairable=True,
                     ),
                     provider_evaluation(),
                 ]
@@ -280,7 +374,7 @@ async def test_partial_failure_continues_but_authentication_failure_stops(tmp_pa
 
             assert partial.failed_evaluations == 1
             assert partial.evaluations_completed == 1
-            assert len(partial_provider.calls) == 2
+            assert len(partial_provider.calls) == 3
             assert auth.failed_evaluations == 1
             assert len(auth_provider.calls) == 1
     finally:
@@ -309,5 +403,60 @@ async def test_timeout_is_retried_and_invalid_output_is_classified(tmp_path: Pat
 
             assert summary.evaluations_completed == 1
             assert len(provider.calls) == 2
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_invalid_structured_output_gets_one_repair_retry(tmp_path: Path) -> None:
+    settings = settings_for(tmp_path / "repair.db", openai_max_retries=0)
+    database = Database(settings.database_url)
+    await database.create_schema()
+    profile, preferences = configuration()
+    invalid = ProviderFailure(
+        EvaluationErrorCategory.INVALID_STRUCTURED_OUTPUT,
+        "Structured output validation failed at matched_skills:list_too_long",
+        repairable=True,
+    )
+    provider = FakeRecruiterEvaluationProvider([invalid, provider_evaluation()])
+    try:
+        async with database.session_factory() as session:
+            await add_job(session, external_id="repair-1")
+            await session.commit()
+            summary = await EvaluationOrchestrator(
+                session, settings, profile, preferences, provider
+            ).run(EvaluationRunOptions())
+
+            assert summary.evaluations_completed == 1
+            assert len(provider.calls) == 2
+            assert "exactly one schema-valid object" in provider.calls[1].system_prompt
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_schema_bad_request_is_not_retried_as_output_repair(tmp_path: Path) -> None:
+    settings = settings_for(tmp_path / "schema-bad-request.db", openai_max_retries=0)
+    database = Database(settings.database_url)
+    await database.create_schema()
+    profile, preferences = configuration()
+    provider = FakeRecruiterEvaluationProvider(
+        [
+            ProviderFailure(
+                EvaluationErrorCategory.INVALID_STRUCTURED_OUTPUT,
+                "OpenAI rejected the structured-output request (param=verbosity)",
+            )
+        ]
+    )
+    try:
+        async with database.session_factory() as session:
+            await add_job(session, external_id="schema-bad-request-1")
+            await session.commit()
+            summary = await EvaluationOrchestrator(
+                session, settings, profile, preferences, provider
+            ).run(EvaluationRunOptions())
+
+            assert summary.failed_evaluations == 1
+            assert len(provider.calls) == 1
     finally:
         await database.dispose()

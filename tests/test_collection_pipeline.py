@@ -55,7 +55,7 @@ def job_fixture(
         external_job_id=external_id,
         title=title,
         company_name=company,
-        location="Remote",
+        location="Worldwide Remote",
         location_type=LocationType.REMOTE,
         employment_type=EmploymentType.FULL_TIME,
         description=description,

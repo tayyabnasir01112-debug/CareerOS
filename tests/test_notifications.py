@@ -6,7 +6,12 @@ import pytest
 from sqlalchemy import func, select
 
 from app.core.config import Settings
-from app.db.models import JobEvaluation, JobNotification, NotificationStatus
+from app.db.models import (
+    JobEvaluation,
+    JobNotification,
+    LocationEligibilityClassification,
+    NotificationStatus,
+)
 from app.db.session import Database
 from app.schemas.evaluation import EvaluationRunOptions
 from app.schemas.notification import (
@@ -112,6 +117,33 @@ async def test_success_persistence_and_duplicate_suppression(tmp_path: Path) -> 
             assert notification.status == NotificationStatus.SENT
             assert notification.provider_response_id == "discord-message-1"
             assert await session.scalar(select(func.count()).select_from(JobNotification)) == 1
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_unclear_location_is_suppressed_with_reason(tmp_path: Path) -> None:
+    database = Database(settings_for(tmp_path / "unclear-location.db").database_url)
+    await database.create_schema()
+    provider = FakeNotificationProvider([])
+    try:
+        await seed_evaluation(database, external_id="unclear-location")
+        async with database.session_factory() as session:
+            evaluation = await session.scalar(select(JobEvaluation))
+            assert evaluation is not None
+            await session.refresh(evaluation, ["job"])
+            evaluation.job.location_classification = LocationEligibilityClassification.UNCLEAR
+            await session.commit()
+
+            summary = await DiscordNotificationService(session, provider).run(
+                minimum_score=75,
+                limit=5,
+                require_confirmed_location=True,
+            )
+
+            assert summary.notifications_sent == 0
+            assert summary.suppression_reasons == {"location:unclear": 1}
+            assert provider.payloads == []
     finally:
         await database.dispose()
 

@@ -8,6 +8,7 @@ from app.db.models import (
     EligibilityStatus,
     EmploymentType,
     Job,
+    LocationEligibilityClassification,
     LocationType,
 )
 from app.schemas.evaluation import (
@@ -78,7 +79,7 @@ async def add_job(
         title=title,
         normalized_title=JobDeduplicationService.normalize_text(title),
         company=company,
-        location="Remote",
+        location="Worldwide Remote",
         location_type=LocationType.REMOTE,
         employment_type=EmploymentType.FULL_TIME,
         description=body,
@@ -95,6 +96,9 @@ async def add_job(
         compensation_period="month",
         eligibility_status=eligibility_status,
         eligibility_reasons=eligibility_reasons or [],
+        location_classification=LocationEligibilityClassification.REMOTE_WORLDWIDE_ELIGIBLE,
+        location_evidence=["fixture explicitly permits worldwide remote work"],
+        deterministic_pre_score=90,
     )
     session.add(job)
     await session.flush()

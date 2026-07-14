@@ -31,9 +31,17 @@ fingerprint made from normalized title, company, and location, allowing cross-so
 be skipped. Material changes update an existing source record; unchanged records only refresh the
 latest collection timestamp.
 
-Rule-based eligibility runs after insertion or material updates. Hard exclusions such as unpaid,
+Rule-based eligibility runs after every observed source record. `LocationEligibilityService`
+persists an explicit classification and evidence independently of candidate willingness to
+relocate. Country-restricted remote jobs and unsupported foreign onsite/hybrid jobs are rejected;
+unclear locations remain review-only and cannot reach automatic notification. Hard exclusions such as unpaid,
 commission-only, frontend-only, stale, or citizenship-restricted listings are rejected. Missing or
 incomparable compensation and publication data are flagged rather than presented as known facts.
+
+`EvaluationPriorityService` stores a deterministic pre-score from target-title match, verified
+skill overlap, confirmed location, recency, employment compatibility, compensation, and description
+completeness. The evaluation repository excludes location failures and weak candidates before its
+five-job budget, prioritizes confirmed remote work, and prefers never-evaluated backlog records.
 
 ## Persistence and interfaces
 
@@ -53,8 +61,8 @@ The implemented recruiter evaluation boundary has four explicit services:
 - `EvaluationInputBuilder` creates sanitized, size-bounded prompts and deterministic component
   fingerprints from normalized jobs, verified configuration, eligibility, and versioned prompt
   files. Raw collector payloads never cross this boundary.
-- `RecruiterEvaluator` owns limited transient retries and delegates one prepared input to the
-  injected provider interface.
+- `RecruiterEvaluator` owns limited transient retries plus one concise schema-repair attempt for an
+  invalid structured result and delegates prepared input to the injected provider interface.
 - `OpenAIRecruiterEvaluationProvider` uses the async Responses API with Pydantic Structured Outputs,
   no tools, no streaming, and provider-side storage disabled. Tests inject
   `FakeRecruiterEvaluationProvider` and never contact OpenAI.
@@ -68,12 +76,15 @@ meaningfully succeed. The default concurrency is intentionally one.
 
 Versioned prompts prohibit invented experience, protected-characteristic decisions, unsupported
 hiring-likelihood claims, hidden reasoning disclosure, and instructions embedded in job data. Only
-the validated user-facing result and minimal API metadata are persisted.
+the validated user-facing result and minimal API metadata are persisted. Validation failures retain
+only sanitized field paths and error types, never the provider response body.
 
 ## Notification and local scheduling boundary
 
 `CareerPipelineOrchestrator` composes collection and evaluation, then passes qualifying successful
-results to `DiscordNotificationService`. `JobNotificationFormatter` creates one bounded embed per
+results to `DiscordNotificationService`. Its policy rechecks deterministic eligibility and confirmed
+location, score, recommendation, and notification fingerprint; AI output cannot override a location
+rejection. `JobNotificationFormatter` creates one bounded embed per
 job. `NotificationRepository` persists attempts and a unique evaluation fingerprint: successful
 fingerprints are skipped while failed deliveries remain retryable. `DiscordWebhookProvider` is the
 only component that receives the webhook URL and uses bounded async HTTP without redirects. Tests
@@ -81,7 +92,8 @@ inject `FakeNotificationProvider` and block external traffic.
 
 The explicit Windows Task Scheduler scripts launch the same CLI every three hours without keeping
 FastAPI running. Task definitions contain project paths but no credentials; ignored `.env` settings
-are loaded at process startup.
+are loaded at process startup. `StartWhenAvailable`, `WakeToRun`, and `IgnoreNew` cover missed starts,
+wake behavior, and overlap prevention.
 
 Company research, resume changes, application generation, analytics, automatic submission, and
 frontend work remain outside the implemented release.

@@ -4,8 +4,13 @@ from enum import StrEnum
 
 from pydantic import BaseModel
 
-from app.db.models import EmploymentType, LocationType
+from app.db.models import EmploymentType, LocationEligibilityClassification, LocationType
 from app.schemas.configuration import JobPreferences
+from app.services.location_eligibility import (
+    LocationEligibilityInput,
+    LocationEligibilityResult,
+    LocationEligibilityService,
+)
 
 
 class EligibilityDecision(StrEnum):
@@ -31,6 +36,8 @@ class EligibilityJob(BaseModel):
 class EligibilityResult(BaseModel):
     decision: EligibilityDecision
     reasons: list[str]
+    location_classification: LocationEligibilityClassification
+    location_evidence: list[str]
 
 
 class EligibilityService:
@@ -47,6 +54,7 @@ class EligibilityService:
 
     def __init__(self, preferences: JobPreferences) -> None:
         self.preferences = preferences
+        self.location = LocationEligibilityService()
 
     def evaluate(self, job: EligibilityJob, *, now: datetime | None = None) -> EligibilityResult:
         rejected: list[str] = []
@@ -74,16 +82,29 @@ class EligibilityService:
             rejected.append("job has a citizenship or clearance restriction")
 
         self._check_age(job, now or datetime.now(UTC), rejected, flagged)
-        self._check_location(job, rejected)
+        location_result = self._check_location(job, rejected, flagged)
         self._check_compensation(job, rejected, flagged)
 
         if rejected:
             return EligibilityResult(
-                decision=EligibilityDecision.REJECTED, reasons=rejected + flagged
+                decision=EligibilityDecision.REJECTED,
+                reasons=rejected + flagged,
+                location_classification=location_result.classification,
+                location_evidence=location_result.evidence,
             )
         if flagged:
-            return EligibilityResult(decision=EligibilityDecision.FLAGGED, reasons=flagged)
-        return EligibilityResult(decision=EligibilityDecision.ELIGIBLE, reasons=[])
+            return EligibilityResult(
+                decision=EligibilityDecision.FLAGGED,
+                reasons=flagged,
+                location_classification=location_result.classification,
+                location_evidence=location_result.evidence,
+            )
+        return EligibilityResult(
+            decision=EligibilityDecision.ELIGIBLE,
+            reasons=[],
+            location_classification=location_result.classification,
+            location_evidence=location_result.evidence,
+        )
 
     def _check_age(
         self, job: EligibilityJob, now: datetime, rejected: list[str], flagged: list[str]
@@ -102,21 +123,25 @@ class EligibilityService:
                 f"listing is older than {self.preferences.maximum_listing_age_hours} hours"
             )
 
-    def _check_location(self, job: EligibilityJob, rejected: list[str]) -> None:
-        locations = self.preferences.locations
-        if job.location_type == LocationType.REMOTE:
-            if not locations.allow_worldwide_remote:
-                rejected.append("remote roles are not enabled")
-            return
-        is_pakistan = "pakistan" in (job.location or "").lower()
-        if is_pakistan and locations.allow_pakistan_onsite:
-            return
-        if (
-            job.location_type in {LocationType.ONSITE, LocationType.HYBRID}
-            and locations.require_relocation_support_for_other_onsite
-            and not job.relocation_supported
-        ):
-            rejected.append("onsite role outside Pakistan does not state relocation support")
+    def _check_location(
+        self, job: EligibilityJob, rejected: list[str], flagged: list[str]
+    ) -> LocationEligibilityResult:
+        result = self.location.classify(
+            LocationEligibilityInput(
+                location=job.location,
+                location_type=job.location_type,
+                description=job.description,
+            )
+        )
+        if result.classification in {
+            LocationEligibilityClassification.REMOTE_LOCATION_RESTRICTED,
+            LocationEligibilityClassification.FOREIGN_ONSITE_WITHOUT_RELOCATION,
+            LocationEligibilityClassification.FOREIGN_HYBRID_WITHOUT_RELOCATION,
+        }:
+            rejected.append(result.evidence[0])
+        elif result.classification == LocationEligibilityClassification.UNCLEAR:
+            flagged.append(result.evidence[0])
+        return result
 
     def _check_compensation(
         self, job: EligibilityJob, rejected: list[str], flagged: list[str]

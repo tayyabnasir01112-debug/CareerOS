@@ -8,6 +8,13 @@ versioning once stable releases begin.
 
 ### Added
 
+- Persisted deterministic location eligibility/evidence and a verified-facts queue pre-score.
+- Confirmed-location notification gating with configurable consider behavior and suppression counts.
+- One-time concise structured-output repair with sanitized validation field diagnostics.
+- Request-schema failures no longer consume a redundant repair call; optional verbosity is omitted
+  for compatibility across configurable structured-output models.
+- Task Scheduler wake, missed-run, and overlap-safe settings.
+
 - Windows-first FastAPI backend with async SQLAlchemy, SQLite, and Alembic.
 - Validated candidate, preference, and collector configuration.
 - Public Greenhouse, Lever, and Ashby collectors with bounded HTTP behavior.

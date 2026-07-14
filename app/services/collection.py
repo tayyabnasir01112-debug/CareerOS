@@ -24,9 +24,14 @@ from app.db.models import (
 from app.schemas.collector import CollectedJob
 from app.schemas.configuration import JobPreferences, SourceConfig
 from app.schemas.pipeline import CollectionSummary, CollectorPlatform
-from app.services.configuration import load_job_preferences, load_source_config
+from app.services.configuration import (
+    load_candidate_profile,
+    load_job_preferences,
+    load_source_config,
+)
 from app.services.deduplication import FingerprintInput, JobDeduplicationService
 from app.services.eligibility import EligibilityDecision, EligibilityJob, EligibilityService
+from app.services.evaluation_priority import EvaluationPriorityService
 
 PersistResult = Literal["inserted", "updated", "duplicate"]
 
@@ -54,6 +59,7 @@ async def collect_configured_jobs(
 ) -> CollectionSummary:
     source_config = load_source_config(settings)
     preferences = load_job_preferences(settings)
+    candidate_profile = load_candidate_profile(settings)
     collection = source_config.collection
     limits = httpx.Limits(
         max_connections=collection.max_concurrency,
@@ -73,7 +79,12 @@ async def collect_configured_jobs(
             max_response_bytes=collection.max_response_bytes,
         )
         collectors = build_collectors(source_config, http, source)
-        return await CollectionPipeline(session, preferences, collectors).run()
+        return await CollectionPipeline(
+            session,
+            preferences,
+            collectors,
+            priority=EvaluationPriorityService(candidate_profile, preferences),
+        ).run()
 
 
 class CollectionPipeline:
@@ -82,10 +93,13 @@ class CollectionPipeline:
         session: AsyncSession,
         preferences: JobPreferences,
         collectors: Sequence[JobCollector],
+        *,
+        priority: EvaluationPriorityService | None = None,
     ) -> None:
         self.session = session
         self.collectors = collectors
         self.eligibility = EligibilityService(preferences)
+        self.priority = priority
 
     async def run(self) -> CollectionSummary:
         summary = CollectionSummary(sources_attempted=len(self.collectors))
@@ -270,6 +284,10 @@ class CollectionPipeline:
         )
         job.eligibility_status = EligibilityStatus(result.decision.value)
         job.eligibility_reasons = result.reasons
+        job.location_classification = result.location_classification
+        job.location_evidence = result.location_evidence
+        if self.priority is not None:
+            job.deterministic_pre_score = self.priority.score(job, now=collected.collected_at)
         return result.decision
 
 

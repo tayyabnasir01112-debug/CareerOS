@@ -79,6 +79,7 @@ class CareerPipelineOrchestrator:
             total_output_tokens=evaluation.total_output_tokens,
             daily_evaluation_budget_remaining=evaluation.daily_budget_remaining,
             errors=[*collection.errors, *evaluation.errors, *notifications.errors],
+            notification_suppression_reasons=notifications.suppression_reasons,
         )
 
     async def _notify(self, options: PipelineRunOptions) -> NotificationRunSummary:
@@ -88,6 +89,8 @@ class CareerPipelineOrchestrator:
             candidates = await repository.candidates(
                 minimum_score=self.settings.discord_minimum_match_score,
                 limit=limit,
+                notify_consider=self.settings.discord_notify_consider,
+                require_confirmed_location=self.settings.discord_require_confirmed_location,
             )
             return NotificationRunSummary(notifications_skipped=len(candidates))
 
@@ -99,6 +102,8 @@ class CareerPipelineOrchestrator:
                 candidates = await repository.candidates(
                     minimum_score=self.settings.discord_minimum_match_score,
                     limit=limit,
+                    notify_consider=self.settings.discord_notify_consider,
+                    require_confirmed_location=self.settings.discord_require_confirmed_location,
                 )
                 return NotificationRunSummary(
                     notifications_skipped=len(candidates),
@@ -115,6 +120,8 @@ class CareerPipelineOrchestrator:
             return await DiscordNotificationService(self.session, provider).run(
                 minimum_score=self.settings.discord_minimum_match_score,
                 limit=limit,
+                notify_consider=self.settings.discord_notify_consider,
+                require_confirmed_location=self.settings.discord_require_confirmed_location,
             )
         finally:
             if owned_provider is not None:

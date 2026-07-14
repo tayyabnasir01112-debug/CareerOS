@@ -13,11 +13,13 @@ and data-quality foundation is exercised.
 - Structured OpenAI recruiter evaluation with verified evidence, caching, and budgets
 - Discord job notifications with persisted deduplication and safe retries
 - Manual and Windows-scheduled end-to-end pipeline execution
+- Confirmed-location filtering, deterministic evaluation priority, and notification suppression
+  diagnostics
 - Windows-native development, automated tests, secret scanning, and CI
 
 ## Next recommended milestone
 
-- Controlled production evaluation calibration against reviewed job fixtures
+- Continued production evaluation calibration against reviewed job fixtures
 - Explicit verified portfolio-project catalog for evidence-backed project matching
 - Evaluation observability and manual review workflows
 - Attributable company research as a separate, non-evaluator service boundary

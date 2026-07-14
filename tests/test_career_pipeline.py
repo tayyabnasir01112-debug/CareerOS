@@ -280,6 +280,9 @@ def test_windows_task_scripts_are_local_and_secret_free() -> None:
     assert ".venv\\Scripts\\python.exe" in register
     assert "IntervalHours = 3" in register
     assert "-WindowStyle Hidden" in register
+    assert "-StartWhenAvailable" in register
+    assert "-WakeToRun" in register
+    assert "-MultipleInstances IgnoreNew" in register
     assert "DISCORD_WEBHOOK_URL" not in register
     assert "OPENAI_API_KEY" not in register
     assert "Unregister-ScheduledTask" in unregister
