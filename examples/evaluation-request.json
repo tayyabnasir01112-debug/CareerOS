@@ -1,0 +1,7 @@
+{
+  "job_id": null,
+  "limit": 5,
+  "minimum_rule_score": 75,
+  "force": false,
+  "dry_run": true
+}

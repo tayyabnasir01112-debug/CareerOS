@@ -1,0 +1,21 @@
+{
+  "jobs_considered": 1,
+  "evaluations_requested": 0,
+  "evaluations_completed": 0,
+  "cached_evaluations_reused": 0,
+  "skipped_by_deterministic_eligibility": 0,
+  "skipped_by_score_or_status_rules": 0,
+  "failed_evaluations": 0,
+  "daily_budget_remaining": 25,
+  "total_input_tokens": 0,
+  "total_output_tokens": 0,
+  "errors": [],
+  "dry_run_inputs": [
+    {
+      "job_id": 1,
+      "input_hash": "example_input_hash_64_hex_characters_for_demo_only_000000",
+      "job_content_fingerprint": "example_job_fingerprint_64_hex_characters_for_demo_000000",
+      "truncated": false
+    }
+  ]
+}

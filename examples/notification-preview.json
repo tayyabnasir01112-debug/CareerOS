@@ -1,0 +1,38 @@
+{
+  "username": "CareerOS",
+  "allowed_mentions": {
+    "parse": []
+  },
+  "embeds": [
+    {
+      "title": "Python Automation Engineer",
+      "url": "https://jobs.example.test/example-role",
+      "color": 2855129,
+      "fields": [
+        {
+          "name": "Company",
+          "value": "Example Software Company",
+          "inline": true
+        },
+        {
+          "name": "Location",
+          "value": "Remote",
+          "inline": true
+        },
+        {
+          "name": "Recommendation",
+          "value": "apply - match 86/100 - confidence 82/100",
+          "inline": false
+        },
+        {
+          "name": "Strongest matches",
+          "value": "Python, API integrations, workflow automation",
+          "inline": false
+        }
+      ],
+      "footer": {
+        "text": "CareerOS - verified candidate evidence only"
+      }
+    }
+  ]
+}

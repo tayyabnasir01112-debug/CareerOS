@@ -1,0 +1,15 @@
+{
+  "sources_attempted": 2,
+  "sources_succeeded": 1,
+  "sources_failed": 1,
+  "jobs_fetched": 3,
+  "jobs_inserted": 2,
+  "jobs_updated": 0,
+  "duplicates_skipped": 1,
+  "jobs_eligible": 1,
+  "jobs_flagged": 1,
+  "jobs_rejected": 0,
+  "errors": [
+    "lever: CollectorRequestError: Public endpoint failed after 3 attempts: https://api.lever.co/v0/postings/example"
+  ]
+}

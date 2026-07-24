@@ -1,0 +1,3 @@
+{"timestamp":"2026-07-24T10:00:00+00:00","level":"INFO","logger":"app.main","message":"CareerOS configuration validated"}
+{"timestamp":"2026-07-24T10:00:03+00:00","level":"WARNING","logger":"app.services.collection","message":"collector failed: CollectorRequestError: Public endpoint failed after 3 attempts: https://api.lever.co/v0/postings/example"}
+{"timestamp":"2026-07-24T10:00:05+00:00","level":"ERROR","logger":"app.services.evaluation_orchestrator","message":"configuration_error: OPENAI_API_KEY is not configured"}

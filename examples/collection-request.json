@@ -1,0 +1,6 @@
+{
+  "method": "POST",
+  "path": "/runs/collect?source=greenhouse",
+  "body": null,
+  "note": "Collection uses configured public ATS sources and may perform external HTTP requests."
+}

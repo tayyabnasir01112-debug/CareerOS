@@ -35,6 +35,14 @@ Rule-based eligibility runs after insertion or material updates. Hard exclusions
 commission-only, frontend-only, stale, or citizenship-restricted listings are rejected. Missing or
 incomparable compensation and publication data are flagged rather than presented as known facts.
 
+Collectors currently run sequentially at the pipeline level. This is intentional for the local
+SQLite-first workflow: each source gets an isolated `CollectorRun` record, conservative request
+volume, and a clear partial-failure boundary. Bounded concurrency still exists inside supported
+HTTP operations through `ResilientHttpClient`, which owns the semaphore, timeout, retry, and
+response-size controls. If one collector raises an exception, `CollectionPipeline._run_collector`
+records a sanitized failure for that source and continues with the remaining configured sources
+instead of crashing the entire run.
+
 ## Persistence and interfaces
 
 Async SQLAlchemy repositories persist companies, jobs, evaluations, application-package metadata,

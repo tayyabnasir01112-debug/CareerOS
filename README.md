@@ -1,66 +1,99 @@
 # CareerOS
 
-CareerOS is a production-style AI career platform that discovers public job listings, normalizes
-and deduplicates opportunities, evaluates them against verified candidate evidence, and sends
-useful matches to Discord. Tailored application packages remain a future, human-reviewed phase.
+CareerOS is a Python backend system that collects public job listings, normalizes them, evaluates fit against verified candidate evidence, and prepares notification-ready match summaries.
 
-CareerOS is owned and maintained by [Tayyab Nasir](https://github.com/tayyabnasir01112-debug).
-Portfolio links are available at [tayyabautomates.com](https://tayyabautomates.com) and
-[LinkedIn](https://www.linkedin.com/in/tayyabautomates).
+## Problem
 
-## Project status
+Job search workflows often become a manual loop: checking multiple ATS boards, copying listings into spreadsheets, filtering stale or unsuitable roles, and deciding which opportunities deserve attention. CareerOS turns that workflow into a maintainable backend pipeline with clear data boundaries and safe optional integrations.
 
-Implemented now:
+## What CareerOS Does
 
-- FastAPI backend and structured JSON logging
-- Async SQLAlchemy persistence, local SQLite, and Alembic migrations
-- Public Greenhouse, Lever, and Ashby collectors
-- HTML and source-field normalization
-- Source-level and cross-source deterministic deduplication
-- Rule-based eligibility filtering
-- CLI and API collection with partial-failure statistics
-- Verified recruiter-style OpenAI evaluation with structured outputs, caching, and strict budgets
-- Deduplicated Discord notifications and an end-to-end career pipeline
-- Optional local automation through Windows Task Scheduler
-- Mocked testing, strict static analysis, secret scanning, and GitHub Actions CI
+- Collects public Greenhouse, Lever, and Ashby listings from configured sources.
+- Normalizes job data into typed schemas.
+- Deduplicates jobs by source identity and cross-source fingerprints.
+- Applies deterministic eligibility rules before any AI evaluation.
+- Optionally evaluates jobs through a configured OpenAI provider boundary.
+- Optionally sends deduplicated Discord notifications for qualifying matches.
+- Persists jobs, runs, evaluations, and notification attempts in SQLite through async SQLAlchemy and Alembic migrations.
 
-Planned:
+## See It in Action
 
-- Attributable company research
-- Resume optimization
-- Tailored application writing and preparation packages
-- Career analytics dashboard and frontend
+1. Initialize the local SQLite database.
+2. Start the FastAPI application.
+3. Open `http://127.0.0.1:8000/docs`.
+4. Trigger a safe dry-run evaluation with `POST /evaluations/run`.
+5. Review persisted jobs, runs, evaluations, and notifications through the API.
+6. Use `DEMO.md` and `examples/` for a local recording script and sanitized request/response examples.
 
-See the [roadmap](ROADMAP.md) for milestone boundaries and sequencing.
+CareerOS does not include a live deployment. External OpenAI and Discord calls are optional and must be configured through local environment variables.
 
-## Architecture overview
+## Implemented Features
 
-CareerOS uses service-oriented internal boundaries:
+- FastAPI API with typed request and response schemas.
+- Async SQLAlchemy persistence with SQLite and Alembic migrations.
+- Public ATS collectors for Greenhouse, Lever, and Ashby.
+- Bounded async HTTP client behavior with timeouts, response-size limits, retry budgets, and disabled redirects.
+- HTML cleanup, source normalization, deterministic deduplication, and eligibility filtering.
+- OpenAI recruiter-evaluation boundary with structured outputs, prompt sanitization, caching, budgets, and fake-provider tests.
+- Discord notification boundary with webhook validation, retry handling, deduplication, and fake-provider tests.
+- CLI scripts for collection, evaluation, source validation, pipeline runs, DB initialization, and secret scanning.
+- GitHub Actions CI for secret scanning, Ruff formatting, Ruff linting, strict Mypy, DB initialization, and Pytest.
+- Optional local scheduling through Windows Task Scheduler scripts.
 
-1. Collector adapters read documented public ATS feeds with bounded async HTTP behavior.
-2. Normalization converts platform fields and HTML descriptions into a shared job contract.
-3. The collection service applies source uniqueness, deterministic cross-source fingerprints, and
-   rule-based eligibility decisions.
-4. SQLAlchemy services persist companies, jobs, evaluations, packages, and collector-run audit
-   records in SQLite for local use.
-5. FastAPI routes and the PowerShell-compatible CLI call the same business services.
-6. The recruiter evaluation service sends only sanitized normalized job data and verified profile
-   facts to the configured OpenAI model, then validates and persists structured output.
-7. The notification service formats qualifying evaluations as bounded Discord embeds and records a
-   delivery fingerprint so reruns cannot send the same result twice.
+## Architecture
+
+```mermaid
+flowchart LR
+    API["FastAPI API\napp/api/routes.py"]
+    CLI["CLI scripts\nscripts/*.py"]
+    Pipeline["Career pipeline\napp/services/career_pipeline.py"]
+    Collection["Collection pipeline\napp/services/collection.py"]
+    Collectors["Source collectors\nGreenhouse / Lever / Ashby"]
+    HTTP["Bounded HTTP client\napp/collectors/http.py"]
+    Normalize["Normalization + deduplication\napp/collectors/normalization.py\napp/services/deduplication.py"]
+    Eligibility["Eligibility rules\napp/services/eligibility.py"]
+    Evidence["Candidate evidence + preferences\nconfig/*.yaml"]
+    Evaluation["Evaluation orchestrator\napp/services/evaluation_orchestrator.py"]
+    OpenAI["OpenAI provider boundary\napp/services/evaluation_provider.py"]
+    Notify["Discord notification service\napp/services/notification.py"]
+    DB["SQLite database\nSQLAlchemy + Alembic"]
+
+    API --> Pipeline
+    API --> Collection
+    API --> Evaluation
+    CLI --> Pipeline
+    CLI --> Collection
+    CLI --> Evaluation
+    Pipeline --> Collection
+    Collection --> Collectors
+    Collectors --> HTTP
+    Collection --> Normalize
+    Normalize --> Eligibility
+    Collection --> DB
+    Evaluation --> Evidence
+    Evaluation --> OpenAI
+    Evaluation --> DB
+    Pipeline --> Notify
+    Notify --> DB
+```
 
 More detail is available in [docs/architecture.md](docs/architecture.md).
 
-## Requirements
+## Data Flow
 
-- Windows 10 or 11
-- Python 3.12 available through the `py` launcher
-- PowerShell 5.1 or PowerShell 7+
-- No Docker or external database is required
+1. `app/api/routes.py` or `scripts/*.py` receives a collection, evaluation, or full-pipeline request.
+2. `app/services/collection.py` loads `config/source_config.yaml` and creates the configured collectors.
+3. `app/collectors/*.py` call documented public ATS endpoints through `app/collectors/http.py`.
+4. `app/collectors/normalization.py` cleans HTML and removes sensitive raw payload fields.
+5. `app/services/deduplication.py` creates deterministic fingerprints for source and cross-source deduplication.
+6. `app/services/eligibility.py` applies deterministic candidate preference rules before AI evaluation.
+7. `app/db/models.py` stores companies, jobs, collector runs, evaluations, application-package metadata, and notifications.
+8. `app/services/evaluation_input.py` builds sanitized prompts from normalized jobs and verified YAML evidence.
+9. `app/services/evaluation_provider.py` isolates OpenAI calls behind an injectable provider protocol.
+10. `app/services/evaluation_repository.py` caches successful evaluations and persists retryable failures.
+11. `app/services/notification.py` formats qualifying evaluations and records Discord notification attempts.
 
-## Windows PowerShell setup
-
-Run these commands from the repository root:
+## Quick Start
 
 ```powershell
 py -3.12 -m venv .venv
@@ -73,289 +106,103 @@ python -m scripts.init_db
 python -m uvicorn app.main:create_app --factory --reload
 ```
 
-Open `http://127.0.0.1:8000/docs` for the API documentation. Collection can also be triggered with
-`POST /runs/collect` and the optional `source` query parameter.
+Open `http://127.0.0.1:8000/docs`.
 
-All `CAREEROS_*` settings can be changed in `.env` or as process environment variables. Candidate
-facts and job preferences live in validated YAML files under `config/`. Missing or malformed files
-produce an actionable startup error. Do not put secrets or private resume details in tracked YAML.
-`OPENAI_API_KEY` configures recruiter evaluation, while `DISCORD_WEBHOOK_URL` remains reserved and
-unused. The OpenAI key is read only when a non-dry recruiter evaluation runs.
-
-## Recruiter evaluation
-
-CareerOS evaluates eligible or review-flagged jobs against the verified YAML profile through the
-OpenAI Responses API and Pydantic Structured Outputs. The configured default is `gpt-5.4-mini`; set
-`OPENAI_RECRUITER_MODEL` to another Structured-Outputs-capable model available to your OpenAI
-project. Model names live in configuration, not business logic.
-
-Create the local environment file if needed, then edit it without printing the key in terminal
-history:
-
-```powershell
-Copy-Item .env.example .env -ErrorAction SilentlyContinue
-notepad .env
-python -m scripts.init_db
-```
-
-Set these entries in `.env`:
-
-```dotenv
-OPENAI_API_KEY=
-OPENAI_RECRUITER_MODEL=gpt-5.4-mini
-OPENAI_MAX_EVALUATIONS_PER_RUN=10
-OPENAI_MAX_EVALUATIONS_PER_DAY=25
-OPENAI_MAX_INPUT_CHARACTERS=18000
-OPENAI_REQUEST_TIMEOUT_SECONDS=45
-```
-
-Leave `OPENAI_API_KEY` blank until you intentionally run a live evaluation. Start with an offline
-dry run, which performs selection, sanitization, truncation, and fingerprinting but makes no OpenAI
-call and creates no successful evaluation record:
+Safe local commands:
 
 ```powershell
 python -m scripts.evaluate_jobs --dry-run --limit 5
+python -m scripts.scan_secrets
+python -m pytest -q
 ```
 
-Evaluate one controlled job or a bounded batch:
+## API Examples
+
+See [docs/api.md](docs/api.md) for curl and PowerShell examples for the real routes in `app/api/routes.py`.
+
+Minimal dry-run evaluation request:
+
+```bash
+curl -X POST http://127.0.0.1:8000/evaluations/run \
+  -H "Content-Type: application/json" \
+  -d "{\"dry_run\": true, \"limit\": 5}"
+```
+
+Example files:
+
+- [examples/collection-request.json](examples/collection-request.json)
+- [examples/collection-response.json](examples/collection-response.json)
+- [examples/evaluation-request.json](examples/evaluation-request.json)
+- [examples/evaluation-response.json](examples/evaluation-response.json)
+- [examples/notification-preview.json](examples/notification-preview.json)
+- [examples/sample-logs.txt](examples/sample-logs.txt)
+
+## Docker
+
+The Docker image runs the FastAPI application. It does not include credentials, a live database volume, or a hosted deployment.
 
 ```powershell
-python -m scripts.evaluate_jobs --job-id 123 --limit 1
-python -m scripts.evaluate_jobs --limit 5
-python -m scripts.evaluate_jobs --minimum-rule-score 75
-python -m scripts.evaluate_jobs --job-id 123 --force
+docker build -t careeros .
+docker run --rm -p 8000:8000 --env-file .env careeros
 ```
 
-The API equivalents are `POST /evaluations/run`, `GET /evaluations`,
-`GET /evaluations/{evaluation_id}`, and `GET /jobs/{job_id}/evaluation`. API callers may select a
-job, limit, force mode, and dry-run mode, but cannot override credentials, model, prompt files, or
-budgets.
+For local development, the PowerShell quick start remains the simplest path because it initializes SQLite and installs development tools.
 
-Successful cache reuse requires unchanged job content, candidate profile, preferences, prompt
-content/version, and model. Failed evaluations can be retried; `--force` intentionally bypasses a
-successful cache entry. API attempts—including failures—count against the UTC daily budget. Cached,
-dry-run, and deterministic-ineligible outcomes do not spend that budget. Summaries report token
-usage but never estimate price from hardcoded rates.
-
-### Information sent to OpenAI
-
-- Normalized title, company, location, workplace and employment type
-- Sanitized description, compensation, and public listing dates
-- Verified facts from `candidate_profile.yaml`
-- Job preferences and deterministic eligibility reasons
-- Verified achievements and public professional portfolio links
-
-CareerOS never sends raw collector payloads, request headers, cookies, API keys, local paths, phone
-numbers, resumes, generated applications, or unrelated personal information. It does not request
-tools, web search, file search, code execution, computer use, or hidden reasoning. It stores only
-the validated evaluation plus minimal response ID, token counts, duration, cache fingerprints, and
-sanitized errors—not full OpenAI responses or chain-of-thought.
-
-### Evaluation troubleshooting
-
-- `configuration_error`: add the key to the ignored `.env` file and confirm the model setting.
-- `authentication_error` or `permission_error`: rotate or correct the key and verify model access.
-- `quota_error`: resolve project billing or quota; CareerOS does not retry quota exhaustion.
-- `rate_limit_error`, `timeout_error`, or `transient_provider_error`: transient calls use limited
-  exponential retries with jitter, then persist a safe retryable failure.
-- `invalid_structured_output`: retry the failed job; the malformed provider body is never stored.
-- No jobs considered: collect jobs, apply migrations, and confirm listing age and rule eligibility.
-
-Current limitations: listing expiry is enforced only where normalized date data exists; the
-candidate YAML currently contains verified achievements but no individually verified portfolio
-project catalog, so project recommendations remain empty; evaluation concurrency is deliberately
-one request at a time.
-
-## Discord notifications and full pipeline
-
-Create a webhook in Discord under **Server Settings → Integrations → Webhooks**, choose the target
-channel, and copy its URL. Place it only in the ignored local `.env` file:
-
-```dotenv
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your-id/your-token
-DISCORD_NOTIFICATIONS_ENABLED=true
-DISCORD_MINIMUM_MATCH_SCORE=75
-DISCORD_MAX_NOTIFICATIONS_PER_RUN=5
-DISCORD_REQUEST_TIMEOUT_SECONDS=20
-```
-
-Run every enabled source, one source, a safe dry run, or a no-notification test:
+## Testing and Quality Checks
 
 ```powershell
-python -m scripts.run_career_pipeline --all
-python -m scripts.run_career_pipeline --source greenhouse --limit 5
-python -m scripts.run_career_pipeline --all --dry-run
-python -m scripts.run_career_pipeline --all --no-notify
-```
-
-Dry runs never call OpenAI or Discord. `--no-notify` still permits collection and evaluation but
-does not deliver messages. A Discord notification is eligible only for a successful evaluation at
-or above the configured score with `strong_apply`, `apply`, or `consider`. CareerOS hashes the
-evaluation input, structured result, prompt version, and model, then stores that fingerprint with
-the delivery record. A sent fingerprint is never sent again; failed records remain retryable.
-
-Discord receives only the job title, company, location, source/date, public URL, concise structured
-match fields, skills, gaps, concern, positioning, and application-preparation flag. CareerOS never
-sends raw descriptions or collector payloads, prompts, full OpenAI responses, webhook/API secrets,
-phone numbers, local paths, or hidden reasoning.
-
-An HTTP 404 usually means the webhook was deleted; create a replacement and update `.env`. HTTP
-401/403 means Discord rejected the webhook credentials. HTTP 429 is retried using Discord's
-`Retry-After` guidance, while persistent rate limits are reported without exposing response bodies.
-
-### Windows Task Scheduler
-
-Registration is always explicit. From the project root, register or remove the default three-hour
-task with:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\register_windows_task.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\unregister_windows_task.ps1
-```
-
-Use `-IntervalHours 6` to choose another interval. The task uses the project's
-`.venv\Scripts\python.exe`, sets the project as its working directory, reads secrets from the local
-`.env`, runs with a hidden PowerShell window, prevents overlapping instances, and writes only the
-pipeline's sanitized JSON summary to `careeros-pipeline.log`.
-
-For manual Task Scheduler setup, create a repeating task with program `powershell.exe`, start in the
-CareerOS directory, and use arguments equivalent to:
-
-```text
--NoProfile -NonInteractive -WindowStyle Hidden -Command "Set-Location 'C:\path\to\CareerOS'; & '.\.venv\Scripts\python.exe' -m scripts.run_career_pipeline --all"
-```
-
-Do not put webhook URLs or OpenAI keys in task arguments.
-
-## Public collector configuration
-
-`config/source_registry.yaml` is the maintainable source catalog. It records company display name,
-ATS platform and identifier, canonical public careers URL, categories, remote relevance, enabled
-state, active-job state, validation status, UTC validation time, and failure cooldown metadata.
-The committed registry contains 97 live-validated boards; the generated runtime subset enables 88
-active, remote-relevant boards: 37 Greenhouse, 23 Lever, and 28 Ashby.
-
-```yaml
-greenhouse:
-  enabled: true
-  boards:
-    - company-board-token
-lever:
-  enabled: false
-  sites:
-    - company-site-name
-ashby:
-  enabled: false
-  boards:
-    - company-jobs-page-name
-```
-
-- Greenhouse uses its unauthenticated Job Board API with `content=true`. The board token is the
-  segment after `boards.greenhouse.io/` or `job-boards.greenhouse.io/`, and is documented in the
-  [Greenhouse Job Board API](https://developers.greenhouse.io/job-board.html).
-- Lever uses its public v0 Postings API in JSON mode. The site name is the segment after
-  `jobs.lever.co/`; see the [Lever Postings API](https://github.com/lever/postings-api).
-- Ashby uses its public Job Postings API with compensation enabled. The jobs page name is the final
-  segment of `jobs.ashbyhq.com/{name}`; see the
-  [Ashby public job postings guide](https://developers.ashbyhq.com/docs/public-job-posting-api).
-
-Validate the registry or one platform, explicitly force a refresh, then regenerate runtime config:
-
-```powershell
-python -m scripts.validate_sources
-python -m scripts.validate_sources --platform greenhouse
-python -m scripts.validate_sources --refresh
-python -m scripts.sync_source_config
-```
-
-Normal validation honors a seven-day validation TTL and invalid-source cooldown; `--refresh`
-explicitly rechecks the selected sources. Validation uses fixed public ATS endpoint templates,
-bounded async HTTP, no redirects, and no authentication. Invalid or protected candidates are
-disabled and never synced. `sync_source_config` preserves the shared collection settings while
-generating only enabled, currently valid identifiers. Use `--prune-invalid` after reviewing a
-discovery batch if invalid audit entries should be removed from the registry.
-
-The shared collection settings control the identifying User-Agent, timeout, limited retry count,
-exponential-backoff base, and a conservative connection limit. A failure from one board is recorded
-without stopping other configured boards.
-
-## Running collectors from PowerShell
-
-Initialize or migrate SQLite before collecting:
-
-```powershell
-cd C:\Users\ts199\CareerOS
-.\.venv\Scripts\Activate.ps1
-python -m scripts.init_db
-python -m scripts.collect_jobs --source greenhouse
-python -m scripts.collect_jobs --source lever
-python -m scripts.collect_jobs --source ashby
-python -m scripts.collect_jobs --all
-```
-
-`--source` runs the enabled identifiers for one platform. `--all` runs every enabled platform.
-A partial failure returns an honest summary but remains successful if at least one requested board
-or site completed meaningfully. If nothing matched or every requested execution failed, the CLI
-returns a non-zero exit code.
-
-The API equivalent is:
-
-```powershell
-Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/runs/collect?source=greenhouse"
-Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/runs/collect"
-```
-
-## Normalization and deduplication
-
-HTML descriptions are converted to readable text while headings, list items, requirements, and
-compensation content are retained. Scripts, styles, forms, iframes, and excessive whitespace are
-removed. Source URLs and original public payloads are stored for traceability.
-
-Each `(source, external_job_id)` pair is database-protected. A repeated source record is updated
-only when material normalized data changes. New jobs also receive a deterministic SHA-256
-fingerprint from normalized title, company, and location; an existing cross-source fingerprint is
-skipped. Rule-based eligibility runs for new and materially updated jobs, and each configured board
-or site receives its own `CollectorRun` statistics record.
-
-## Known limitations and boundaries
-
-- Collectors read only documented public job-board data. They do not submit applications, access
-  private ATS APIs, authenticate, scrape search engines, or bypass CAPTCHA, rate limits, robots,
-  access controls, or other platform protections.
-- CareerOS does not guess or crawl for identifiers at runtime. Registry additions must be sourced
-  from a public careers page and pass `validate_sources` before sync.
-- ATS fields vary. Missing publication time, workplace type, employment type, or compensation is
-  preserved as unknown and handled conservatively; undisclosed compensation is flagged.
-- Greenhouse custom metadata is not standardized, and Lever does not provide a general updated-at
-  field. Ashby compensation can contain multiple geographic tiers; the collector preserves the full
-  raw payload and uses only its public summary component for normalized numeric fields.
-- A large enabled registry increases collection duration and public request volume. The defaults
-  intentionally use concurrency two and per-board isolation; curate `enabled` flags as needs change.
-
-## Quality checks
-
-```powershell
-.\.venv\Scripts\Activate.ps1
 python -m scripts.scan_secrets
 python -m ruff format --check .
 python -m ruff check .
 python -m mypy app scripts tests
-python -m pytest
+python -m scripts.init_db
+python -m pytest -q
+python -m pytest --cov=app --cov-report=term-missing
 ```
 
-To apply future database migrations, run `python -m scripts.init_db` again. Local SQLite data is
-stored at `data/careeros.db` by default.
+Dependency audit, when installed:
 
-## Future deployment image
+```powershell
+python -m pip_audit . --skip-editable
+```
 
-The `Dockerfile` is provided only as a future deployment option. It is not part of setup, tests,
-database initialization, or any local development workflow.
+## Security
 
-## Contributing and security
+- Runtime secrets belong only in an ignored local `.env` file or a secret manager.
+- `OPENAI_API_KEY` and `DISCORD_WEBHOOK_URL` are optional and must not be committed.
+- Tests use fake providers and block unmocked network calls.
+- Logs and errors are sanitized through `app/core/security.py`.
+- The repository includes `SECURITY.md` and a local secret-scan script.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development expectations and [SECURITY.md](SECURITY.md)
-for private vulnerability reporting. Never include candidate-private information or credentials in
-issues, logs, fixtures, or commits. CareerOS collectors are limited to documented public endpoints
-and do not bypass authentication, CAPTCHA, access controls, or platform protections.
+## Operational Boundaries
+
+- Collectors read documented public ATS endpoints only.
+- CareerOS does not authenticate into ATS systems, submit applications, bypass CAPTCHA, or evade access controls.
+- Collectors currently run sequentially at the pipeline level. This keeps local runs conservative and makes per-source failures easier to isolate.
+- Bounded concurrency is applied inside supported HTTP operations through `ResilientHttpClient`.
+- The broad collector exception boundary in `CollectionPipeline._run_collector` is intentional: one failed source records a failed `CollectorRun` and sanitized error without crashing the whole collection request.
+- OpenAI and Discord integrations are isolated behind provider interfaces so tests can run without credentials.
+- Windows Task Scheduler scripts are optional local automation helpers, not required infrastructure.
+
+## Limitations
+
+- SQLite is the supported local database.
+- Evaluation concurrency is intentionally one request at a time.
+- OpenAI and Discord integrations require user-provided credentials.
+- Docker is available for the API process, but local DB initialization is still performed through project scripts.
+- No frontend, hosted dashboard, or live deployment is included.
+- Source registry quality depends on validated public ATS identifiers.
+
+## Roadmap
+
+Planned work is tracked in [ROADMAP.md](ROADMAP.md). Current roadmap areas include attributable company research, resume optimization, tailored application package generation, analytics, and frontend/dashboard work.
+
+## Further Documentation
+
+- [DEMO.md](DEMO.md) - local demo flow and Loom script
+- [docs/api.md](docs/api.md) - API usage examples
+- [docs/architecture.md](docs/architecture.md) - architecture notes
+- [CONTRIBUTING.md](CONTRIBUTING.md) - development workflow
+- [SECURITY.md](SECURITY.md) - vulnerability reporting and secret handling
 
 CareerOS is available under the [MIT License](LICENSE).
