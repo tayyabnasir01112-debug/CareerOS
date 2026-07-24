@@ -13,7 +13,7 @@ from app.schemas.evaluation import (
     EvaluationStatus,
 )
 from app.services.configuration import load_yaml_model
-from app.services.evaluation_orchestrator import EvaluationOrchestrator
+from app.services.evaluation_orchestrator import EvaluationOrchestrator, run_configured_evaluations
 from app.services.evaluation_provider import (
     FakeRecruiterEvaluationProvider,
     ProviderFailure,
@@ -233,6 +233,34 @@ async def test_dry_run_has_no_provider_calls_or_writes(tmp_path: Path) -> None:
             assert len(summary.dry_run_inputs) == 1
             assert provider.calls == []
             assert await session.scalar(select(func.count()).select_from(JobEvaluation)) == 0
+    finally:
+        await database.dispose()
+
+
+@pytest.mark.asyncio
+async def test_live_openai_run_requires_configured_model(tmp_path: Path) -> None:
+    settings = Settings(
+        environment="test",
+        database_url=f"sqlite+aiosqlite:///{tmp_path / 'missing-model.db'}",
+        openai_api_key="test-key-not-a-real-credential",
+        openai_recruiter_model=None,
+        openai_retry_base_seconds=0,
+        openai_max_input_characters=18_000,
+        _env_file=None,
+    )
+    database = Database(settings.database_url)
+    await database.create_schema()
+    try:
+        async with database.session_factory() as session:
+            await add_job(session, external_id="missing-model")
+            await session.commit()
+            summary = await run_configured_evaluations(session, settings, EvaluationRunOptions())
+
+            assert summary.evaluations_requested == 0
+            assert summary.errors == [
+                f"{EvaluationErrorCategory.CONFIGURATION_ERROR.value}: "
+                "OPENAI_RECRUITER_MODEL is not configured"
+            ]
     finally:
         await database.dispose()
 

@@ -237,7 +237,7 @@ class JobNotificationFormatter:
     @staticmethod
     def _clean(value: str, maximum: int) -> str:
         cleaned = sanitize_prompt_text(value).strip() or "Not available"
-        return cleaned if len(cleaned) <= maximum else f"{cleaned[: maximum - 1]}…"
+        return cleaned if len(cleaned) <= maximum else f"{cleaned[: maximum - 3]}..."
 
     def format(self, job: Job, evaluation: RecruiterEvaluationResult) -> DiscordPayload:
         skills = ", ".join(evaluation.matched_skills[:8]) or "None listed"

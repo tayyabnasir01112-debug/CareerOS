@@ -27,8 +27,8 @@ class Settings(BaseSettings):
     source_registry_path: Path = Path("config/source_registry.yaml")
     api_page_size: int = Field(default=50, ge=1, le=200)
     openai_api_key: SecretStr | None = Field(default=None, validation_alias="OPENAI_API_KEY")
-    openai_recruiter_model: str = Field(
-        default="gpt-5.4-mini", validation_alias="OPENAI_RECRUITER_MODEL", min_length=1
+    openai_recruiter_model: str | None = Field(
+        default=None, validation_alias="OPENAI_RECRUITER_MODEL"
     )
     openai_max_evaluations_per_run: int = Field(
         default=10, validation_alias="OPENAI_MAX_EVALUATIONS_PER_RUN", ge=1, le=100
@@ -73,6 +73,14 @@ class Settings(BaseSettings):
             raise ValueError("CareerOS currently requires an async SQLite database URL")
         return value
 
+    @field_validator("openai_recruiter_model")
+    @classmethod
+    def normalize_openai_recruiter_model(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
     @field_validator("discord_webhook_url")
     @classmethod
     def validate_discord_webhook_url(cls, value: SecretStr | None) -> SecretStr | None:
@@ -91,6 +99,15 @@ class Settings(BaseSettings):
             return None
         value = self.openai_api_key.get_secret_value().strip()
         return value or None
+
+    def openai_model_value(self) -> str | None:
+        if self.openai_recruiter_model is None:
+            return None
+        value = self.openai_recruiter_model.strip()
+        return value or None
+
+    def openai_model_label(self) -> str:
+        return self.openai_model_value() or "not-configured"
 
     def discord_webhook_value(self) -> str | None:
         if self.discord_webhook_url is None:

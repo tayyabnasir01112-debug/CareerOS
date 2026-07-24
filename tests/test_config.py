@@ -18,6 +18,8 @@ def test_settings_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None
     assert settings.environment == "test"
     assert settings.database_url.endswith("data/test.db")
     assert settings.api_page_size == 25
+    assert settings.openai_recruiter_model is None
+    assert settings.openai_model_label() == "not-configured"
 
 
 def test_settings_reject_non_async_sqlite_url() -> None:
@@ -53,8 +55,21 @@ def test_openai_settings_use_unprefixed_environment_variables(
 
     assert settings.openai_key_value() == "test-key-not-a-real-credential"
     assert settings.openai_recruiter_model == "fixture-model"
+    assert settings.openai_model_value() == "fixture-model"
+    assert settings.openai_model_label() == "fixture-model"
     assert settings.openai_max_evaluations_per_run == 4
     assert settings.openai_max_evaluations_per_day == 9
     assert settings.openai_max_input_characters == 8000
     assert settings.openai_request_timeout_seconds == 12
     assert "test-key-not-a-real-credential" not in repr(settings)
+
+
+def test_blank_openai_model_is_treated_as_unconfigured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_RECRUITER_MODEL", "   ")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.openai_recruiter_model is None
+    assert settings.openai_model_value() is None

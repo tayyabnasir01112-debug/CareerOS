@@ -51,7 +51,7 @@ class EvaluationOrchestrator:
         self.repository = EvaluationRepository(session)
         self.builder = EvaluationInputBuilder(
             maximum_characters=settings.openai_max_input_characters,
-            model=settings.openai_recruiter_model,
+            model=settings.openai_model_label(),
         )
         self.evaluator = (
             RecruiterEvaluator(
@@ -226,9 +226,19 @@ async def run_configured_evaluations(
                     "OPENAI_API_KEY is not configured"
                 ],
             )
+        model = settings.openai_model_value()
+        if model is None:
+            daily_used = await EvaluationRepository(session).count_daily_requests(datetime.now(UTC))
+            return EvaluationRunSummary(
+                daily_budget_remaining=max(0, settings.openai_max_evaluations_per_day - daily_used),
+                errors=[
+                    f"{EvaluationErrorCategory.CONFIGURATION_ERROR.value}: "
+                    "OPENAI_RECRUITER_MODEL is not configured"
+                ],
+            )
         owned_provider = OpenAIRecruiterEvaluationProvider(
             api_key=api_key,
-            model=settings.openai_recruiter_model,
+            model=model,
             timeout_seconds=settings.openai_request_timeout_seconds,
         )
         provider = owned_provider
