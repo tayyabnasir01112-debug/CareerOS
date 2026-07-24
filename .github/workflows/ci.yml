@@ -47,8 +47,15 @@ jobs:
       - name: Run strict Mypy
         run: python -m mypy app scripts tests
 
+      - name: Audit installed dependencies
+        continue-on-error: true
+        run: python -m pip_audit . --skip-editable
+
       - name: Initialize isolated SQLite database
         run: python -m scripts.init_db
 
       - name: Run complete test suite
         run: python -m pytest
+
+      - name: Report coverage
+        run: python -m pytest --cov=app --cov-report=term-missing
